@@ -395,3 +395,88 @@ const MQTT_CLIENT = {
 if (typeof window !== 'undefined') {
     MQTT_CLIENT.init();
 }
+
+// --- Small UI for entering broker WSS URL and credentials ---
+MQTT_CLIENT.renderConnectPanel = function() {
+    if (document.getElementById('mqtt-panel')) return;
+
+    const panel = document.createElement('div');
+    panel.id = 'mqtt-panel';
+    panel.style.position = 'fixed';
+    panel.style.right = '12px';
+    panel.style.bottom = '12px';
+    panel.style.width = '320px';
+    panel.style.background = 'rgba(20,20,20,0.95)';
+    panel.style.border = '1px solid #333';
+    panel.style.borderRadius = '8px';
+    panel.style.padding = '12px';
+    panel.style.zIndex = 9999;
+    panel.style.color = '#ddd';
+    panel.style.fontSize = '13px';
+    panel.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <strong style="font-size:14px">MQTT Connect</strong>
+            <button id="mqtt-panel-close" style="background:transparent;border:0;color:#999;cursor:pointer">✕</button>
+        </div>
+        <label style="display:block;margin-bottom:6px;font-size:12px">Broker (wss://)</label>
+        <input id="mqtt-broker" style="width:100%;padding:8px;border-radius:6px;border:1px solid #444;background:#0b0b0b;color:#eee;margin-bottom:8px" placeholder="wss://broker:port/path" />
+        <div style="display:flex;gap:6px;margin-bottom:8px">
+            <input id="mqtt-username" style="flex:1;padding:8px;border-radius:6px;border:1px solid #444;background:#0b0b0b;color:#eee" placeholder="username" />
+            <input id="mqtt-password" type="password" style="flex:1;padding:8px;border-radius:6px;border:1px solid #444;background:#0b0b0b;color:#eee" placeholder="password" />
+        </div>
+        <div style="display:flex;gap:6px;justify-content:flex-end">
+            <button id="mqtt-connect" style="padding:8px 12px;border-radius:6px;border:0;background:#16a34a;color:#fff;cursor:pointer">Connect</button>
+            <button id="mqtt-disconnect" style="padding:8px 12px;border-radius:6px;border:0;background:#ef4444;color:#fff;cursor:pointer">Disconnect</button>
+        </div>
+        <div style="margin-top:8px;font-size:12px;color:#9ca3af">Status: <span id="mqtt-status">disconnected</span></div>
+    `;
+
+    document.body.appendChild(panel);
+
+    const brokerEl = document.getElementById('mqtt-broker');
+    const userEl = document.getElementById('mqtt-username');
+    const passEl = document.getElementById('mqtt-password');
+    const connectBtn = document.getElementById('mqtt-connect');
+    const disconnectBtn = document.getElementById('mqtt-disconnect');
+    const closeBtn = document.getElementById('mqtt-panel-close');
+    const statusEl = document.getElementById('mqtt-status');
+
+    // Pre-fill with saved config
+    const cfg = this.loadConfig();
+    brokerEl.value = cfg.brokerUrl || this.config.brokerUrl || '';
+    userEl.value = cfg.username || this.config.username || '';
+    passEl.value = cfg.password || this.config.password || '';
+
+    connectBtn.addEventListener('click', async () => {
+        const newCfg = {
+            brokerUrl: brokerEl.value.trim(),
+            username: userEl.value.trim(),
+            password: passEl.value
+        };
+        try {
+            await this.updateConfig(newCfg);
+            await this.connect();
+        } catch (e) {
+            console.error('MQTT connect failed', e);
+        }
+    });
+
+    disconnectBtn.addEventListener('click', () => {
+        this.disconnect();
+    });
+
+    closeBtn.addEventListener('click', () => panel.remove());
+
+    // Update status indicator on status changes
+    this.onStatus((status, err) => {
+        statusEl.textContent = status || (this.connected ? 'connected' : 'disconnected');
+        if (err) statusEl.textContent += ` (${err})`;
+    });
+};
+
+// Auto-render connect panel on small-screen load (user can close it)
+if (typeof window !== 'undefined') {
+    window.addEventListener('load', () => {
+        try { MQTT_CLIENT.renderConnectPanel(); } catch (e) { console.warn('Failed to render MQTT panel', e); }
+    });
+}
