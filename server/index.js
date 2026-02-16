@@ -93,4 +93,64 @@ app.post('/api/readings', (req, res) => {
   res.json({ success: true });
 });
 
-app.listen(PORT, () => console.log(`Telemetry bridge listening on http://localhost:${PORT}`));
+// Add WebSocket bridge so browsers can receive MQTT messages via ws://<host>:<port>/ws
+const http = require('http');
+const WebSocket = require('ws');
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ noServer: true, path: '/ws' });
+
+// Upgrade HTTP connections to WebSocket for the WS bridge
+server.on('upgrade', function upgrade(request, socket, head) {
+  if (request.url === '/ws') {
+    wss.handleUpgrade(request, socket, head, function done(ws) {
+      wss.emit('connection', ws, request);
+    });
+  } else {
+    socket.destroy();
+  }
+});
+
+client.on('message', (topic, message) => {
+  let payload = null;
+  try { payload = JSON.parse(message.toString()); } catch { payload = message.toString(); }
+  // Extract device id from topic (energy/{type}/{deviceId}/telemetry)
+  const parts = topic.split('/');
+  let deviceId = topic;
+  if (parts.length >= 3) deviceId = parts[1] + '_' + parts[2];
+  saveReading(deviceId, topic, payload);
+  console.log(`Saved reading for ${deviceId} topic=${topic}`);
+
+  // Broadcast to connected WebSocket clients
+  try {
+    const wsMsg = JSON.stringify({ topic, deviceId, payload, ts: Date.now() });
+    wss.clients.forEach((c) => {
+      if (c.readyState === WebSocket.OPEN) c.send(wsMsg);
+    });
+  } catch (e) {
+    console.error('WS broadcast error', e);
+  }
+});
+
+const os = require('os');
+
+// Start the HTTP server (which also serves the WS bridge) and bind to all interfaces
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`Telemetry bridge listening on http://0.0.0.0:${PORT} (WS at /ws)`);
+
+  // Print network interfaces to help connect from other devices
+  const nets = os.networkInterfaces();
+  Object.keys(nets).forEach((name) => {
+    for (const net of nets[name]) {
+      if (net.family === 'IPv4' && !net.internal) {
+        console.log(`Interface ${name}: ${net.address}`);
+      }
+    }
+  });
+});
+
+// Simple ping on new WS connections
+wss.on('connection', (ws) => {
+  console.log('WebSocket client connected');
+  ws.send(JSON.stringify({ hello: 'ws-bridge', ts: Date.now() }));
+  ws.on('close', () => console.log('WebSocket client disconnected'));
+});

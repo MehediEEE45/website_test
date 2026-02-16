@@ -20,11 +20,8 @@ const char* MQTT_USER = "battery"; // HiveMQ Cloud user (if any)
 const char* MQTT_PASSWORD = "Batterybms80"; // HiveMQ Cloud password (if any)
 
 // Topics
-// Publish telemetry using the dashboard convention so web client can subscribe:
-// energy/battery/<deviceId>/telemetry
-const char* PUB_TOPIC = "energy/battery/esp32_1/telemetry";
-// Subscribe to commands for this device (dashboard can publish here)
-const char* SUB_TOPIC = "energy/battery/esp32_1/command";
+const char* PUB_TOPIC = "battery/data";
+const char* SUB_TOPIC = "battery/recieve";
 
 // Pin / I2C configuration (user-provided)
 static const int OLED_SDA_PIN = 21; // OLED SDA
@@ -279,36 +276,13 @@ void loop() {
       if (MEASURED_CAPACITY_mAh > 0.0f) soh_percent = (MEASURED_CAPACITY_mAh / BATTERY_CAPACITY_mAh) * 100.0f;
       float current_A = current_mA / 1000.0f;
       float power_W = power_mW / 1000.0f;
-      // Build payload compatible with dashboard expectations
-      float voltage = bus_V;
-      float current_signed = current_A; // positive = discharge, negative = charging
-      float current_mag = fabs(current_signed);
-      float power = power_W;
-      float soc = soc_percent;
-      float soh = soh_percent;
-      // Provide some placeholders for fields not measured here
-      float temperature = 25.0; // placeholder if no temp sensor
-      int cycles = 0;
-      float capacity_Ah = BATTERY_CAPACITY_mAh / 1000.0f; // Ah
-      int resistance_mohm = 0;
-
-      String payload = "{"
-        "\"timestamp\":" + String(now) +
-        ",\"voltage\":" + String(voltage, 3) +
-        ",\"bus_V\":" + String(voltage, 3) +
-        ",\"current\":" + String(current_mag, 3) +
-        ",\"current_signed\":" + String(current_signed, 3) +
-        ",\"power\":" + String(power, 3) +
-        ",\"power_W\":" + String(power, 3) +
-        ",\"soc\":" + String(soc, 2) +
-        ",\"soc_percent\":" + String(soc, 2) +
-        ",\"soh\":" + String(soh, 2) +
-        ",\"soh_percent\":" + String(soh, 2) +
-        ",\"temperature\":" + String(temperature, 1) +
-        ",\"resistance\":" + String(resistance_mohm) +
-        ",\"capacity\":" + String(capacity_Ah, 2) +
-        ",\"cycles\":" + String(cycles) +
-        "}";
+      String payload = "{\"uptime_ms\":" + String(now) +
+           ",\"bus_V\":" + String(bus_V, 3) +
+           ",\"shunt_mV\":" + String(shunt_mV, 3) +
+           ",\"current_A\":" + String(current_A, 3) +
+           ",\"power_W\":" + String(power_W, 3) +
+           ",\"soc_percent\":" + String(soc_percent, 2) +
+           ",\"soh_percent\":" + String(soh_percent, 2) + "}";
       if (mqttClient.publish(PUB_TOPIC, payload.c_str())) {
         Serial.print("Published INA219: ");
         Serial.println(payload);

@@ -1,0 +1,4 @@
+adafruit/Adafruit SSD1306@^2.5.7
+adafruit/Adafruit GFX Library@^1.11.7
+adafruit/Adafruit INA219@^1.0
+knolleary/PubSubClient@^2.8
