@@ -15,10 +15,11 @@ const MQTT_CLIENT = {
     client: null,
     connected: false,
     config: {
-        brokerUrl: 'ws://localhost:9001/mqtt',  // WebSocket URL (ws:// or wss://)
-        username: '',
-        password: '',
-        clientId: 'energy-dashboard-' + Math.random().toString(16).slice(2, 10),
+        // Default to HiveMQ Cloud broker for battery projects (can be changed in UI)
+        brokerUrl: 'wss://0d34f5789e1e4a669367abfe5bd45b15.s1.eu.hivemq.cloud:8884/mqtt',  // WebSocket URL (wss://)
+        username: 'battery',
+        password: 'Batterybms80',
+        clientId: 'battery-dashboard-' + Math.random().toString(16).slice(2, 8),
         keepalive: 60,
         reconnectPeriod: 5000,
         connectTimeout: 30000,
