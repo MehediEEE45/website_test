@@ -260,6 +260,33 @@
                     </div>
                 </div>
             </div>
+            <!-- MQTT Diagnostics -->
+            <div style="margin-top:24px;display:grid;grid-template-columns:1fr;gap:16px;">
+                <div class="stat-card">
+                    <h3 style="font-size:16px;font-weight:600;margin-bottom:8px;">MQTT Diagnostics (live)</h3>
+                    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start;">
+                        <div style="flex:1;min-width:260px;">
+                            <p style="font-size:12px;color:#9ca3af;margin-bottom:8px;">Raw payload</p>
+                            <pre id="diagRawPayload" style="background:#0f0f0f;border:1px solid #262626;padding:12px;border-radius:8px;color:#d1d5db;max-height:120px;overflow:auto;">-</pre>
+                        </div>
+                        <div style="width:320px;min-width:220px;">
+                            <p style="font-size:12px;color:#9ca3af;margin-bottom:8px;">Interpreted fields</p>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                                <div style="font-size:13px;color:#9ca3af">Signed Current</div>
+                                <div id="diagSigned">-</div>
+                                <div style="font-size:13px;color:#9ca3af">Magnitude</div>
+                                <div id="diagMag">-</div>
+                                <div style="font-size:13px;color:#9ca3af">Direction</div>
+                                <div id="diagInterpreted">-</div>
+                                <div style="font-size:13px;color:#9ca3af">Source</div>
+                                <div id="diagSource">-</div>
+                            </div>
+                            <div style="margin-top:8px;font-size:12px;color:#9ca3af;">Charge Status: <span id="chargeStatus">Idle</span></div>
+                            <div style="margin-top:4px;font-size:12px;color:#9ca3af;">Current Dir Badge: <span id="currentDir">-</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <div style="display:flex;align-items:center;gap:12px;">
                 <span style="font-size:28px;">🔋</span>
                 <h1 style="font-size:20px;font-weight:700;color:#a855f7;">Battery Health Monitor</h1>
@@ -500,6 +527,12 @@
             <h2 style="font-size:24px;font-weight:700;margin-bottom:24px;">Settings</h2>
             <div style="max-width:600px;">
                 <div class="stat-card" style="margin-bottom:24px;">
+                    <h3 style="font-size:18px;font-weight:600;margin-bottom:12px;">MQTT Protocol</h3>
+                    <div style="font-size:13px;color:#9ca3af;line-height:1.5;margin-bottom:8px;">
+                        <div>Subscribe to: <strong>energy/battery/&lt;deviceId&gt;/telemetry</strong></div>
+                        <div>Payload (JSON): <code>{ voltage, current, current_signed, direction, power, soc, soh, temperature, resistance, capacity, cycles }</code></div>
+                        <div style="margin-top:6px;">Notes: prefer <strong>direction</strong> or <strong>current_signed</strong> for charging state.</div>
+                    </div>
                     <h3 style="font-size:18px;font-weight:600;margin-bottom:16px;">ESP32 Configuration</h3>
                     <div style="margin-bottom:16px;">
                         <label style="font-size:14px;color:#9ca3af;display:block;margin-bottom:8px;">ESP32 IP Address</label>
@@ -743,7 +776,9 @@
 
             function updateUIFromTelemetry(payload, source) {
                 if (!payload || typeof payload !== 'object') return;
-                
+                const rawEl = document.getElementById('diagRawPayload');
+                try { if (rawEl) rawEl.textContent = JSON.stringify(payload, null, 2); } catch (e) { if (rawEl) rawEl.textContent = String(payload); }
+
                 statusIndicator.className = 'status-indicator status-online';
                 statusText.textContent = 'System Online';
                 statusText.style.color = '#10b981';
@@ -1575,6 +1610,8 @@
 
             function updateUIFromTelemetry(payload, source) {
                 if (!payload || typeof payload !== 'object') return;
+                const rawEl = document.getElementById('diagRawPayload');
+                try { if (rawEl) rawEl.textContent = JSON.stringify(payload, null, 2); } catch (e) { if (rawEl) rawEl.textContent = String(payload); }
                 
                 statusIndicator.className = 'status-indicator status-online';
                 statusText.textContent = 'System Online';
