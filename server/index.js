@@ -5,7 +5,7 @@ const mqtt = require('mqtt');
 const express = require('express');
 const bodyParser = require('body-parser');
 const sqlite3 = require('sqlite3').verbose();
-const { MongoClient } = require('mongodb');
+const { MongoClient, ServerApiVersion } = require('mongodb');
 
 const MQTT_URL = process.env.MQTT_URL || 'mqtt://localhost:1883';
 const MQTT_USERNAME = process.env.MQTT_USERNAME || '';
@@ -47,8 +47,17 @@ let mongoCol = null;
 async function initMongo() {
   if (!MONGO_URI) return;
   try {
-    mongoClient = new MongoClient(MONGO_URI, { connectTimeoutMS: 5000 });
+    mongoClient = new MongoClient(MONGO_URI, {
+      serverApi: {
+        version: ServerApiVersion.v1,
+        strict: true,
+        deprecationErrors: true,
+      },
+      connectTimeoutMS: 5000,
+    });
     await mongoClient.connect();
+    // ping to verify connection
+    await mongoClient.db('admin').command({ ping: 1 });
     const db = mongoClient.db(MONGO_DB);
     mongoCol = db.collection(MONGO_COLLECTION);
     console.log('Connected to MongoDB', MONGO_DB, MONGO_COLLECTION);
@@ -65,6 +74,7 @@ async function initMongo() {
     }
   } catch (e) {
     console.error('MongoDB init error', e);
+    try { await mongoClient.close(); } catch (e2) {}
     mongoClient = null;
     mongoCol = null;
   }
