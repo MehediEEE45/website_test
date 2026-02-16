@@ -186,3 +186,136 @@ const DATA = {
 
 // initialize small module
 DATA.init();
+
+// --- Server sync utilities ---
+DATA.SERVER_CONFIG_KEY = 'device_data_servercfg';
+
+// sync local readings for a device to server (batch POST)
+DATA.syncToServer = async function(deviceId, options = {}) {
+    const cfgRaw = localStorage.getItem(this.SERVER_CONFIG_KEY) || '{}';
+    const cfg = Object.assign({ baseUrl: '/api' }, JSON.parse(cfgRaw));
+    const url = (options.url || cfg.baseUrl).replace(/\/$/, '');
+    const batchSize = options.batchSize || 50;
+
+    const readings = this.getRecent(deviceId, batchSize);
+    if (!readings || readings.length === 0) return { success: false, error: 'No readings to sync' };
+
+    try {
+        // send each reading (could be batched in future)
+        for (const r of readings) {
+            const body = { device_id: deviceId, topic: r.meta?.topic || '', payload: r.payload || r };
+            await fetch(url + '/readings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+        }
+        return { success: true, sent: readings.length };
+    } catch (err) {
+        return { success: false, error: err.message || String(err) };
+    }
+};
+
+// fetch recent readings from server for a device
+DATA.fetchFromServer = async function(deviceId, options = {}) {
+    const cfgRaw = localStorage.getItem(this.SERVER_CONFIG_KEY) || '{}';
+    const cfg = Object.assign({ baseUrl: '/api' }, JSON.parse(cfgRaw));
+    const url = (options.url || cfg.baseUrl).replace(/\/$/, '');
+    const limit = options.limit || 100;
+    try {
+        const res = await fetch(`${url}/readings/${encodeURIComponent(deviceId)}?limit=${limit}`, { cache: 'no-store' });
+        if (!res.ok) return { success: false, error: `HTTP ${res.status}` };
+        const data = await res.json();
+        return { success: true, data };
+    } catch (err) {
+        return { success: false, error: err.message || String(err) };
+    }
+};
+
+// Simple UI panel for server sync
+DATA.renderServerPanel = function() {
+    if (document.getElementById('data-server-panel')) return;
+    const panel = document.createElement('div');
+    panel.id = 'data-server-panel';
+    panel.style.position = 'fixed';
+    panel.style.left = '12px';
+    panel.style.bottom = '12px';
+    panel.style.width = '420px';
+    panel.style.maxHeight = '60vh';
+    panel.style.overflow = 'auto';
+    panel.style.background = 'rgba(12,12,12,0.95)';
+    panel.style.border = '1px solid #333';
+    panel.style.borderRadius = '8px';
+    panel.style.padding = '12px';
+    panel.style.zIndex = 9999;
+    panel.style.color = '#ddd';
+    panel.style.fontSize = '13px';
+    panel.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <strong>Data Server</strong>
+            <button id="data-server-close" style="background:transparent;border:0;color:#999;cursor:pointer">✕</button>
+        </div>
+        <label style="font-size:12px">Server Base URL</label>
+        <input id="data-server-url" style="width:100%;padding:8px;margin-bottom:8px;border-radius:6px;border:1px solid #444;background:#0b0b0b;color:#eee" placeholder="/api or https://host:3000/api" />
+        <label style="font-size:12px">Device ID</label>
+        <input id="data-device-id" style="width:100%;padding:8px;margin-bottom:8px;border-radius:6px;border:1px solid #444;background:#0b0b0b;color:#eee" placeholder="battery_battery_1" />
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-bottom:8px">
+            <button id="data-fetch" style="padding:8px 12px;border-radius:6px;border:0;background:#2563eb;color:#fff;cursor:pointer">Fetch</button>
+            <button id="data-sync" style="padding:8px 12px;border-radius:6px;border:0;background:#16a34a;color:#fff;cursor:pointer">Upload</button>
+        </div>
+        <div style="font-size:12px;color:#9ca3af">Status: <span id="data-server-status">idle</span></div>
+        <div id="data-server-output" style="margin-top:8px;font-size:13px;color:#ddd;white-space:pre-wrap"></div>
+    `;
+
+    document.body.appendChild(panel);
+
+    const urlEl = document.getElementById('data-server-url');
+    const devEl = document.getElementById('data-device-id');
+    const fetchBtn = document.getElementById('data-fetch');
+    const syncBtn = document.getElementById('data-sync');
+    const closeBtn = document.getElementById('data-server-close');
+    const statusEl = document.getElementById('data-server-status');
+    const outEl = document.getElementById('data-server-output');
+
+    // load saved config
+    try {
+        const saved = JSON.parse(localStorage.getItem(this.SERVER_CONFIG_KEY) || '{}');
+        urlEl.value = saved.baseUrl || '/api';
+        devEl.value = saved.lastDeviceId || '';
+    } catch (e) { urlEl.value = '/api'; }
+
+    closeBtn.addEventListener('click', () => panel.remove());
+
+    fetchBtn.addEventListener('click', async () => {
+        const base = urlEl.value.trim() || '/api';
+        const deviceId = devEl.value.trim();
+        if (!deviceId) return alert('Enter device id');
+        localStorage.setItem(DATA.SERVER_CONFIG_KEY, JSON.stringify({ baseUrl: base, lastDeviceId: deviceId }));
+        statusEl.textContent = 'fetching...';
+        outEl.textContent = '';
+        const res = await DATA.fetchFromServer(deviceId, { url: base, limit: 200 });
+        if (!res.success) { statusEl.textContent = 'error'; outEl.textContent = res.error; return; }
+        statusEl.textContent = `fetched ${res.data.length}`;
+        outEl.textContent = JSON.stringify(res.data.slice(0,200), null, 2);
+    });
+
+    syncBtn.addEventListener('click', async () => {
+        const base = urlEl.value.trim() || '/api';
+        const deviceId = devEl.value.trim();
+        if (!deviceId) return alert('Enter device id');
+        localStorage.setItem(DATA.SERVER_CONFIG_KEY, JSON.stringify({ baseUrl: base, lastDeviceId: deviceId }));
+        statusEl.textContent = 'uploading...';
+        outEl.textContent = '';
+        const res = await DATA.syncToServer(deviceId, { url: base, batchSize: 200 });
+        if (!res.success) { statusEl.textContent = 'error'; outEl.textContent = res.error; return; }
+        statusEl.textContent = `uploaded ${res.sent}`;
+        outEl.textContent = `Uploaded ${res.sent} readings to ${base}`;
+    });
+};
+
+// Auto-render server panel (user can close it)
+if (typeof window !== 'undefined') {
+    window.addEventListener('load', () => {
+        try { DATA.renderServerPanel(); } catch (e) { console.warn('Failed to render server panel', e); }
+    });
+}
