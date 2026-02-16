@@ -5,6 +5,7 @@ const mqtt = require('mqtt');
 const express = require('express');
 const bodyParser = require('body-parser');
 const sqlite3 = require('sqlite3').verbose();
+const { MongoClient } = require('mongodb');
 
 const MQTT_URL = process.env.MQTT_URL || 'mqtt://localhost:1883';
 const MQTT_USERNAME = process.env.MQTT_USERNAME || '';
@@ -12,6 +13,10 @@ const MQTT_PASSWORD = process.env.MQTT_PASSWORD || '';
 const MQTT_TOPIC_FILTER = process.env.MQTT_TOPIC_FILTER || 'energy/+/+/telemetry';
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const DB_FILE = process.env.DB_FILE || 'telemetry.db';
+const MONGO_URI = process.env.MONGO_URI || '';
+const MONGO_DB = process.env.MONGO_DB || 'battery_monitor';
+const MONGO_COLLECTION = process.env.MONGO_COLLECTION || 'telemetry';
+const MONGO_TTL_DAYS = process.env.MONGO_TTL_DAYS ? parseInt(process.env.MONGO_TTL_DAYS, 10) : 0;
 
 // Ensure DB exists
 const dbPath = path.resolve(__dirname, DB_FILE);
@@ -36,12 +41,46 @@ function saveReading(deviceId, topic, payload) {
   });
 }
 
+// Optional: MongoDB client and collection
+let mongoClient = null;
+let mongoCol = null;
+async function initMongo() {
+  if (!MONGO_URI) return;
+  try {
+    mongoClient = new MongoClient(MONGO_URI, { connectTimeoutMS: 5000 });
+    await mongoClient.connect();
+    const db = mongoClient.db(MONGO_DB);
+    mongoCol = db.collection(MONGO_COLLECTION);
+    console.log('Connected to MongoDB', MONGO_DB, MONGO_COLLECTION);
+
+    // Ensure indexes: device_id + ts descending for queries
+    await mongoCol.createIndex({ device_id: 1, ts: -1 });
+
+    // Optional TTL index on `ts` (convert days to seconds)
+    if (MONGO_TTL_DAYS > 0) {
+      const seconds = MONGO_TTL_DAYS * 24 * 60 * 60;
+      // create a TTL index on 'ts_date' which will store a proper Date
+      await mongoCol.createIndex({ ts_date: 1 }, { expireAfterSeconds: seconds });
+      console.log('Created TTL index to expire documents after', MONGO_TTL_DAYS, 'days');
+    }
+  } catch (e) {
+    console.error('MongoDB init error', e);
+    mongoClient = null;
+    mongoCol = null;
+  }
+}
+
 // Connect to MQTT
-const mqttOptions = {};
+// MQTT connection options with reconnection logic and clientId
+const mqttOptions = {
+  reconnectPeriod: 5000,
+  clientId: process.env.MQTT_CLIENT_ID || `node-bridge-${Math.random().toString(16).slice(2, 8)}`,
+  clean: true,
+};
 if (MQTT_USERNAME) mqttOptions.username = MQTT_USERNAME;
 if (MQTT_PASSWORD) mqttOptions.password = MQTT_PASSWORD;
 
-console.log('Connecting to MQTT broker:', MQTT_URL);
+console.log('Connecting to MQTT broker:', MQTT_URL, 'clientId=', mqttOptions.clientId);
 const client = mqtt.connect(MQTT_URL, mqttOptions);
 
 client.on('connect', () => {
@@ -56,15 +95,51 @@ client.on('error', (err) => {
   console.error('MQTT error', err);
 });
 
-client.on('message', (topic, message) => {
+client.on('message', async (topic, message) => {
   let payload = null;
-  try { payload = JSON.parse(message.toString()); } catch { payload = message.toString(); }
-  // Extract device id from topic (energy/{type}/{deviceId}/telemetry)
+  const raw = message.toString();
+  try { payload = JSON.parse(raw); } catch { payload = raw; }
+
+  // Extract device id from topic if present (energy/{type}/{deviceId}/telemetry)
   const parts = topic.split('/');
   let deviceId = topic;
-  if (parts.length >= 3) deviceId = parts[1] + '_' + parts[2];
-  saveReading(deviceId, topic, payload);
-  console.log(`Saved reading for ${deviceId} topic=${topic}`);
+  if (parts.length >= 3) deviceId = `${parts[1]}_${parts[2]}`;
+
+  // Basic validation and normalization
+  const doc = {
+    device_id: deviceId,
+    topic,
+    raw: raw,
+    ts: Date.now(),
+  };
+
+  if (payload && typeof payload === 'object') {
+    doc.device_id = payload.device_id || deviceId;
+    doc.voltage = Number(payload.voltage || payload.bus_V || payload.v || null) || null;
+    doc.current = Number(payload.current || payload.current_A || payload.i || null) || null;
+    doc.power = Number(payload.power || payload.power_W || null) || null;
+    doc.timestamp = payload.timestamp || payload.ts || null;
+    doc.uptime_ms = payload.uptime_ms || null;
+    doc.payload = payload;
+  } else {
+    doc.payload = raw;
+  }
+
+  // Save to sqlite for compatibility
+  saveReading(doc.device_id, topic, doc.payload);
+
+  // Save to MongoDB if enabled
+  if (mongoCol) {
+    try {
+      // add a Date field for TTL index if configured
+      doc.ts_date = new Date(doc.ts);
+      await mongoCol.insertOne(doc);
+    } catch (e) {
+      console.error('Mongo insert failed', e);
+    }
+  }
+
+  console.log(`Saved reading for ${doc.device_id} topic=${topic}`);
 });
 
 // Simple HTTP API

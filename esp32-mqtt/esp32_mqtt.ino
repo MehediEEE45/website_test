@@ -11,8 +11,10 @@ const char* MQTT_USER = "YOUR_MQTT_USER"; // HiveMQ Cloud user (if any)
 const char* MQTT_PASSWORD = "YOUR_MQTT_PASSWORD"; // HiveMQ Cloud password (if any)
 
 // Topics
-const char* PUB_TOPIC = "esp32/test";
-const char* SUB_TOPIC = "esp32/commands";
+// Publishing structured telemetry to: smartpower/{device_id}/data
+const char* DEVICE_ID = "device01";
+const char* PUB_TOPIC = "smartpower/device01/data"; // change device01 if needed
+const char* SUB_TOPIC = "smartpower/device01/commands";
 
 WiFiClientSecure secureClient;
 PubSubClient mqttClient(secureClient);
@@ -85,8 +87,19 @@ void loop() {
   unsigned long now = millis();
   if (now - lastPublish > PUBLISH_INTERVAL) {
     lastPublish = now;
-    // simple JSON payload
-    String payload = "{\"uptime_ms\":" + String(now) + ",\"value\":" + String(random(20,30)) + "}";
+    // structured telemetry payload: device_id, voltage, current, power, timestamp
+    float voltage = random(480, 540) / 10.0; // simulated 48.0-54.0 V
+    float current = random(0, 500) / 10.0; // simulated 0-50.0 A
+    float power = voltage * current; // W
+    unsigned long ts = (unsigned long)(WiFi.getTime() * 1000UL);
+    String payload = "{";
+    payload += "\"device_id\":\"" + String(DEVICE_ID) + "\",";
+    payload += "\"voltage\":" + String(voltage, 2) + ",";
+    payload += "\"current\":" + String(current, 2) + ",";
+    payload += "\"power\":" + String(power, 2) + ",";
+    payload += "\"timestamp\":" + String(ts) + ",";
+    payload += "\"uptime_ms\":" + String(now);
+    payload += "}";
     if (mqttClient.publish(PUB_TOPIC, payload.c_str())) {
       Serial.print("Published: ");
       Serial.println(payload);
