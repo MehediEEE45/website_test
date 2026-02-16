@@ -91,7 +91,8 @@ void loop() {
     float voltage = random(480, 540) / 10.0; // simulated 48.0-54.0 V
     float current = random(0, 500) / 10.0; // simulated 0-50.0 A
     float power = voltage * current; // W
-    unsigned long ts = (unsigned long)(WiFi.getTime() * 1000UL);
+    // Use millis() for timestamp (relative); for real UTC use NTP + time(nullptr)
+    unsigned long ts = millis();
     String payload = "{";
     payload += "\"device_id\":\"" + String(DEVICE_ID) + "\",";
     payload += "\"voltage\":" + String(voltage, 2) + ",";

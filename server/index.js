@@ -10,7 +10,10 @@ const { MongoClient, ServerApiVersion } = require('mongodb');
 const MQTT_URL = process.env.MQTT_URL || 'mqtt://localhost:1883';
 const MQTT_USERNAME = process.env.MQTT_USERNAME || '';
 const MQTT_PASSWORD = process.env.MQTT_PASSWORD || '';
+// Subscribe to both energy topics and smartpower topics (ESP32 publishes to smartpower/+/data)
 const MQTT_TOPIC_FILTER = process.env.MQTT_TOPIC_FILTER || 'energy/+/+/telemetry';
+const MQTT_TOPIC_FILTER_2 = process.env.MQTT_TOPIC_FILTER_2 || 'smartpower/+/data';
+const MQTT_TOPIC_FILTER_3 = process.env.MQTT_TOPIC_FILTER_3 || 'battery/data';
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const DB_FILE = process.env.DB_FILE || 'telemetry.db';
 const MONGO_URI = process.env.MONGO_URI || '';
@@ -95,9 +98,14 @@ const client = mqtt.connect(MQTT_URL, mqttOptions);
 
 client.on('connect', () => {
   console.log('Connected to MQTT broker');
-  client.subscribe(MQTT_TOPIC_FILTER, { qos: 1 }, (err) => {
-    if (err) console.error('Subscribe error', err);
-    else console.log('Subscribed to', MQTT_TOPIC_FILTER);
+  // Subscribe to all configured topic filters
+  [MQTT_TOPIC_FILTER, MQTT_TOPIC_FILTER_2, MQTT_TOPIC_FILTER_3].forEach(topic => {
+    if (topic) {
+      client.subscribe(topic, { qos: 1 }, (err) => {
+        if (err) console.error('Subscribe error', err);
+        else console.log('Subscribed to', topic);
+      });
+    }
   });
 });
 
@@ -150,6 +158,16 @@ client.on('message', async (topic, message) => {
   }
 
   console.log(`Saved reading for ${doc.device_id} topic=${topic}`);
+
+  // Broadcast to connected WebSocket clients
+  try {
+    const wsMsg = JSON.stringify({ topic, deviceId: doc.device_id, payload: doc.payload, ts: doc.ts });
+    wss.clients.forEach((c) => {
+      if (c.readyState === WebSocket.OPEN) c.send(wsMsg);
+    });
+  } catch (e) {
+    console.error('WS broadcast error', e);
+  }
 });
 
 // Simple HTTP API
@@ -195,42 +213,29 @@ server.on('upgrade', function upgrade(request, socket, head) {
   }
 });
 
-client.on('message', (topic, message) => {
-  let payload = null;
-  try { payload = JSON.parse(message.toString()); } catch { payload = message.toString(); }
-  // Extract device id from topic (energy/{type}/{deviceId}/telemetry)
-  const parts = topic.split('/');
-  let deviceId = topic;
-  if (parts.length >= 3) deviceId = parts[1] + '_' + parts[2];
-  saveReading(deviceId, topic, payload);
-  console.log(`Saved reading for ${deviceId} topic=${topic}`);
-
-  // Broadcast to connected WebSocket clients
-  try {
-    const wsMsg = JSON.stringify({ topic, deviceId, payload, ts: Date.now() });
-    wss.clients.forEach((c) => {
-      if (c.readyState === WebSocket.OPEN) c.send(wsMsg);
-    });
-  } catch (e) {
-    console.error('WS broadcast error', e);
-  }
-});
+// NOTE: Removed duplicate message handler that was causing double-saves
+// The main handler is defined above and also broadcasts to WS clients
 
 const os = require('os');
 
 // Start the HTTP server (which also serves the WS bridge) and bind to all interfaces
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Telemetry bridge listening on http://0.0.0.0:${PORT} (WS at /ws)`);
+// Initialize MongoDB and then start server
+initMongo().then(() => {
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`Telemetry bridge listening on http://0.0.0.0:${PORT} (WS at /ws)`);
 
   // Print network interfaces to help connect from other devices
   const nets = os.networkInterfaces();
-  Object.keys(nets).forEach((name) => {
-    for (const net of nets[name]) {
-      if (net.family === 'IPv4' && !net.internal) {
-        console.log(`Interface ${name}: ${net.address}`);
+    Object.keys(nets).forEach((name) => {
+      for (const net of nets[name]) {
+        if (net.family === 'IPv4' && !net.internal) {
+          console.log(`Interface ${name}: ${net.address}`);
+        }
       }
-    }
+    });
   });
+}).catch(err => {
+  console.error('Startup error', err);
 });
 
 // Simple ping on new WS connections
