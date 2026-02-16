@@ -190,12 +190,18 @@ def main():
     broker = None
     port = None
     scheme = None
+    path = ''
     if args.broker:
-        broker = args.broker
-        port = args.port
-        scheme = None
+        # allow passing full URL (scheme://host:port/path) or just host
+        if '://' in args.broker:
+            host, p, scheme, path = parse_broker_url(args.broker)
+            broker = host
+            port = p
+        else:
+            broker = args.broker
+            port = args.port
     elif mqtt_url:
-        host, p, scheme = parse_broker_url(mqtt_url)
+        host, p, scheme, path = parse_broker_url(mqtt_url)
         broker = host
         port = p
     else:
@@ -208,7 +214,7 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
-    svc = MQTTToCSV(broker, port, scheme, username, password, args.topic, args.outfile)
+    svc = MQTTToCSV(broker, port, scheme, path, username, password, args.topic, args.outfile)
     svc.run()
 
 
