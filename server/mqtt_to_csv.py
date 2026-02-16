@@ -49,37 +49,49 @@ def signal_handler(sig, frame):
 
 
 def parse_broker_url(url: str):
-    """Return (host, port, scheme)"""
+    """Return (host, port, scheme, path)"""
     if not url:
-        return None, None, None
+        return None, None, None, None
     p = urlparse(url)
     scheme = p.scheme
     host = p.hostname
     port = p.port
-    return host, port, scheme
+    path = p.path or ''
+    return host, port, scheme, path
 
 
 class MQTTToCSV:
-    def __init__(self, broker: Optional[str], port: Optional[int], scheme: Optional[str],
+    def __init__(self, broker: Optional[str], port: Optional[int], scheme: Optional[str], path: Optional[str],
                  username: Optional[str], password: Optional[str], topic: str, outfile: str):
         self.broker = broker
         self.port = port
         self.scheme = scheme
+        self.path = path or ''
         self.username = username
         self.password = password
         self.topic = topic
         self.outfile = Path(outfile)
-        self.client = mqtt.Client()
+        # Choose transport: websockets for ws/wss, otherwise tcp
+        transport = 'websockets' if (scheme in ('ws', 'wss')) else 'tcp'
+        self.client = mqtt.Client(transport=transport)
         self.client.on_connect = self.on_connect
         self.client.on_message = self.on_message
         if username:
             self.client.username_pw_set(username, password)
         # TLS for mqtts
-        if scheme == 'mqtts' or (self.port == 8883):
+        if scheme in ('mqtts', 'wss') or (self.port == 8883) or (self.port == 8884):
             try:
                 self.client.tls_set()
                 # For quick testing allow insecure; remove for production
                 self.client.tls_insecure_set(True)
+            except Exception:
+                pass
+
+        # If using websockets and a path (e.g. /mqtt), set ws options
+        if scheme in ('ws', 'wss') and self.path:
+            try:
+                # paho expects path without host
+                self.client.ws_set_options(path=self.path)
             except Exception:
                 pass
 
@@ -143,8 +155,9 @@ class MQTTToCSV:
         if not self.broker:
             raise RuntimeError('No broker host provided')
         host = self.broker
-        port = self.port or (8883 if self.scheme == 'mqtts' else 1883)
-        print(f'Connecting to MQTT broker {host}:{port} (scheme={self.scheme})')
+        port = self.port or (8883 if self.scheme in ('mqtts', 'wss') else 1883)
+        print(f'Connecting to MQTT broker {host}:{port} (scheme={self.scheme}, path={self.path})')
+        # For websockets transport paho will use ws_set_options if provided above
         self.client.connect(host, port, keepalive=60)
         # Blocking loop
         try:
