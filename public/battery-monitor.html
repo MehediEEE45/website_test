@@ -763,6 +763,16 @@
                         console.log('[MQTT] Battery telemetry:', payload);
                         updateUIFromTelemetry(payload, 'mqtt');
                     });
+                    // Also accept legacy/simple topic from ESP32 firmware
+                    MQTT_CLIENT.subscribe('battery/data', (topic, payload) => {
+                        console.log('[MQTT] Legacy battery/data telemetry:', payload);
+                        updateUIFromTelemetry(payload, 'mqtt');
+                    });
+                    // Also accept legacy/simple topic from ESP32 firmware
+                    MQTT_CLIENT.subscribe('battery/data', (topic, payload) => {
+                        console.log('[MQTT] Legacy battery/data telemetry:', payload);
+                        updateUIFromTelemetry(payload, 'mqtt');
+                    });
                 } catch (err) {
                     console.warn('[MQTT] Connection failed:', err.message);
                 }

@@ -36,6 +36,15 @@ const MQTT_CLIENT = {
         // Load saved config from localStorage
         const saved = this.loadConfig();
         this.config = { ...this.config, ...saved, ...overrides };
+        // If the dashboard is served over HTTPS, prefer a secure WebSocket (wss://)
+        try {
+            if (typeof window !== 'undefined' && window.location && window.location.protocol === 'https:' && this.config.brokerUrl && this.config.brokerUrl.indexOf('ws://') === 0) {
+                this.config.brokerUrl = 'wss://' + this.config.brokerUrl.slice(5);
+                console.log('[MQTT] Upgraded brokerUrl to use wss:// for secure page');
+            }
+        } catch (e) {
+            // ignore
+        }
         console.log('[MQTT] Initialized with config:', { ...this.config, password: '***' });
         return this;
     },
@@ -294,6 +303,27 @@ const MQTT_CLIENT = {
                 
                 console.log('[MQTT] Auto-saved telemetry for:', fullDeviceId);
             }
+            return;
+        }
+        // Support legacy/simple battery topics like: battery/data or battery/<id>
+        const m2 = topic.match(/^battery\/([^\/]+)$/);
+        if (m2 && typeof DATA !== 'undefined') {
+            const deviceIdRaw = m2[1];
+            const type = 'battery';
+            const fullDeviceId = `${type}_${deviceIdRaw}`.replace(/_+/g, '_');
+            if (this._isTelemetry(payload)) {
+                const user = typeof AUTH !== 'undefined' ? AUTH.getCurrentUser() : null;
+                DATA.saveReading(fullDeviceId, {
+                    payload,
+                    userId: user ? user.id : null,
+                    meta: { source: 'mqtt', topic }
+                });
+                window.dispatchEvent(new CustomEvent('mqtt-telemetry', {
+                    detail: { topic, deviceId: fullDeviceId, type, payload }
+                }));
+                console.log('[MQTT] Auto-saved telemetry for legacy topic:', fullDeviceId);
+            }
+            return;
         }
     },
 
