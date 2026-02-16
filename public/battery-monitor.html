@@ -754,18 +754,11 @@
             // MQTT Integration for real-time battery telemetry
             // =====================================================
             (async function initMQTT() {
-                const cfg = MQTT_CLIENT.loadConfig();
-                if (!cfg.brokerUrl) return;
-
+                // Use MQTT_CLIENT.config (defaults may be present) and attempt connection immediately
                 try {
                     await MQTT_CLIENT.connect();
                     MQTT_CLIENT.subscribe('energy/battery/+/telemetry', (topic, payload) => {
                         console.log('[MQTT] Battery telemetry:', payload);
-                        updateUIFromTelemetry(payload, 'mqtt');
-                    });
-                    // Also accept legacy/simple topic from ESP32 firmware
-                    MQTT_CLIENT.subscribe('battery/data', (topic, payload) => {
-                        console.log('[MQTT] Legacy battery/data telemetry:', payload);
                         updateUIFromTelemetry(payload, 'mqtt');
                     });
                     // Also accept legacy/simple topic from ESP32 firmware
@@ -1598,13 +1591,15 @@
             // MQTT Integration for real-time battery telemetry
             // =====================================================
             (async function initMQTT() {
-                const cfg = MQTT_CLIENT.loadConfig();
-                if (!cfg.brokerUrl) return;
-
+                // Use the initialized MQTT_CLIENT config (including defaults)
                 try {
                     await MQTT_CLIENT.connect();
                     MQTT_CLIENT.subscribe('energy/battery/+/telemetry', (topic, payload) => {
                         console.log('[MQTT] Battery telemetry:', payload);
+                        updateUIFromTelemetry(payload, 'mqtt');
+                    });
+                    MQTT_CLIENT.subscribe('battery/data', (topic, payload) => {
+                        console.log('[MQTT] Legacy battery/data telemetry:', payload);
                         updateUIFromTelemetry(payload, 'mqtt');
                     });
                 } catch (err) {
