@@ -1,0 +1,8 @@
+{
+  "projects": {
+    "default": "powermonitoring-33",
+    "hosting": "powermonitoring-3"
+  },
+  "targets": {},
+  "etags": {}
+}

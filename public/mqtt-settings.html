@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📡 MQTT Settings - Energy Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#8b5cf6',
+                        'dark-bg': '#0a0a0a',
+                        'card-bg': '#1a1a1a',
+                        'border-color': '#2a2a2a'
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/mqtt-client.js"></script>
+    <script>
+        // Permission guard - require system.admin permission
+        if (!AUTH.getCurrentUser()) {
+            window.location.href = 'login.html';
+        } else if (!AUTH.hasPermission('system.admin')) {
+            window.location.href = 'access-denied.html';
+        }
+    </script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #0f0f0f 100%);
+            color: #f3f4f6;
+            min-height: 100vh;
+        }
+        .glass-card {
+            background: rgba(26, 26, 26, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid #2a2a2a;
+            border-radius: 16px;
+        }
+        .input-field {
+            background: #0a0a0a;
+            border: 1px solid #3a3a3a;
+            border-radius: 8px;
+            padding: 12px 16px;
+            color: #f3f4f6;
+            width: 100%;
+            font-size: 14px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .input-field:focus {
+            outline: none;
+            border-color: #8b5cf6;
+            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2);
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 20px rgba(139, 92, 246, 0.4);
+        }
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .btn-secondary {
+            background: #2a2a2a;
+            color: #9ca3af;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            border: 1px solid #3a3a3a;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-secondary:hover {
+            background: #3a3a3a;
+            color: #f3f4f6;
+        }
+        .btn-danger {
+            background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .btn-danger:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 20px rgba(239, 68, 68, 0.4);
+        }
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .status-connected {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+        }
+        .status-disconnected {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+        .status-connecting {
+            background: rgba(251, 191, 36, 0.2);
+            color: #fbbf24;
+        }
+        .log-entry {
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+            margin-bottom: 4px;
+        }
+        .log-info { background: rgba(59, 130, 246, 0.1); color: #60a5fa; }
+        .log-success { background: rgba(34, 197, 94, 0.1); color: #22c55e; }
+        .log-error { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+        .log-message { background: rgba(139, 92, 246, 0.1); color: #a78bfa; }
+        .topic-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: #2a2a2a;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-family: monospace;
+            margin: 4px;
+        }
+        .topic-chip button {
+            background: none;
+            border: none;
+            color: #ef4444;
+            cursor: pointer;
+            padding: 0 4px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="h-16 bg-dark-bg/95 backdrop-blur-md border-b border-border-color flex items-center justify-between px-8 sticky top-0 z-50">
+        <div class="flex items-center gap-4">
+            <a href="index.html" class="text-gray-400 hover:text-white transition-colors">
+                <i data-lucide="arrow-left" class="w-5 h-5"></i>
+            </a>
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center">
+                    <i data-lucide="radio" class="w-5 h-5 text-white"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold">MQTT Configuration</h1>
+                    <p class="text-xs text-gray-500">Real-time messaging setup</p>
+                </div>
+            </div>
+        </div>
+        <div class="flex items-center gap-4">
+            <div id="mqtt-status" class="status-badge status-disconnected">
+                <span class="w-2 h-2 rounded-full bg-current"></span>
+                <span id="status-text">Disconnected</span>
+            </div>
+            <a href="admin.html" class="btn-secondary text-sm py-2 px-4">
+                <i data-lucide="settings" class="w-4 h-4 inline mr-1"></i>
+                Admin Panel
+            </a>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto p-8">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Connection Settings -->
+            <div class="glass-card p-6">
+                <h2 class="text-xl font-bold mb-6 flex items-center gap-2">
+                    <i data-lucide="plug" class="w-5 h-5 text-purple-400"></i>
+                    Broker Connection
+                </h2>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">Broker URL (WebSocket)</label>
+                        <input type="text" id="broker-url" class="input-field" 
+                               placeholder="ws://broker.local:9001/mqtt or wss://broker.example.com:8884/mqtt">
+                        <p class="text-xs text-gray-500 mt-1">Use ws:// for local, wss:// for secure connections</p>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-2">Username (optional)</label>
+                            <input type="text" id="mqtt-username" class="input-field" placeholder="mqtt_user">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-2">Password (optional)</label>
+                            <input type="password" id="mqtt-password" class="input-field" placeholder="••••••••">
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">Client ID</label>
+                        <input type="text" id="client-id" class="input-field" placeholder="energy-dashboard-xxxx">
+                        <p class="text-xs text-gray-500 mt-1">Auto-generated if left empty</p>
+                    </div>
+                    
+                    <div class="flex gap-3 pt-4">
+                        <button id="btn-connect" class="btn-primary flex-1">
+                            <i data-lucide="plug" class="w-4 h-4 inline mr-2"></i>
+                            Connect
+                        </button>
+                        <button id="btn-disconnect" class="btn-danger" disabled>
+                            <i data-lucide="plug-zap" class="w-4 h-4 inline mr-2"></i>
+                            Disconnect
+                        </button>
+                    </div>
+                    
+                    <button id="btn-save-config" class="btn-secondary w-full mt-2">
+                        <i data-lucide="save" class="w-4 h-4 inline mr-2"></i>
+                        Save Configuration
+                    </button>
+                </div>
+            </div>
+
+            <!-- Subscriptions -->
+            <div class="glass-card p-6">
+                <h2 class="text-xl font-bold mb-6 flex items-center gap-2">
+                    <i data-lucide="mail" class="w-5 h-5 text-purple-400"></i>
+                    Topic Subscriptions
+                </h2>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">Subscribe to Topic</label>
+                        <div class="flex gap-2">
+                            <input type="text" id="subscribe-topic" class="input-field flex-1" 
+                                   placeholder="energy/solar/+/telemetry">
+                            <button id="btn-subscribe" class="btn-primary">Subscribe</button>
+                        </div>
+                    </div>
+                    
+                    <div class="border-t border-border-color pt-4">
+                        <label class="block text-sm font-medium text-gray-400 mb-2">Quick Subscribe</label>
+                        <div class="flex flex-wrap gap-2">
+                            <button class="btn-secondary text-xs py-2 px-3" data-topic="energy/solar/+/telemetry">
+                                ☀️ Solar
+                            </button>
+                            <button class="btn-secondary text-xs py-2 px-3" data-topic="energy/wind/+/telemetry">
+                                💨 Wind
+                            </button>
+                            <button class="btn-secondary text-xs py-2 px-3" data-topic="energy/battery/+/telemetry">
+                                🔋 Battery
+                            </button>
+                            <button class="btn-secondary text-xs py-2 px-3" data-topic="energy/+/+/telemetry">
+                                📊 All Telemetry
+                            </button>
+                            <button class="btn-secondary text-xs py-2 px-3" data-topic="#">
+                                🌐 Everything (#)
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="border-t border-border-color pt-4">
+                        <label class="block text-sm font-medium text-gray-400 mb-2">Active Subscriptions</label>
+                        <div id="subscriptions-list" class="min-h-[60px] bg-dark-bg rounded-lg p-3">
+                            <p class="text-gray-500 text-sm">No active subscriptions</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Publish Message -->
+            <div class="glass-card p-6">
+                <h2 class="text-xl font-bold mb-6 flex items-center gap-2">
+                    <i data-lucide="send" class="w-5 h-5 text-purple-400"></i>
+                    Publish Message
+                </h2>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">Topic</label>
+                        <input type="text" id="publish-topic" class="input-field" 
+                               placeholder="energy/solar/solar_1/command">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">Payload (JSON or plain text)</label>
+                        <textarea id="publish-payload" class="input-field h-24 resize-none" 
+                                  placeholder='{"command": "reset", "value": true}'></textarea>
+                    </div>
+                    
+                    <div class="flex items-center gap-4">
+                        <label class="flex items-center gap-2 text-sm text-gray-400">
+                            <input type="checkbox" id="publish-retain" class="w-4 h-4 rounded">
+                            Retain
+                        </label>
+                        <label class="flex items-center gap-2 text-sm text-gray-400">
+                            QoS:
+                            <select id="publish-qos" class="input-field w-20 py-1 px-2">
+                                <option value="0">0</option>
+                                <option value="1" selected>1</option>
+                                <option value="2">2</option>
+                            </select>
+                        </label>
+                    </div>
+                    
+                    <button id="btn-publish" class="btn-primary w-full" disabled>
+                        <i data-lucide="send" class="w-4 h-4 inline mr-2"></i>
+                        Publish Message
+                    </button>
+                </div>
+            </div>
+
+            <!-- Test ESP32 Simulator -->
+            <div class="glass-card p-6">
+                <h2 class="text-xl font-bold mb-6 flex items-center gap-2">
+                    <i data-lucide="cpu" class="w-5 h-5 text-purple-400"></i>
+                    Test Telemetry Simulator
+                </h2>
+                
+                <p class="text-sm text-gray-400 mb-4">
+                    Simulate ESP32 device publishing telemetry data for testing.
+                </p>
+                
+                <div class="space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-2">Device Type</label>
+                            <select id="sim-type" class="input-field">
+                                <option value="solar">Solar Panel</option>
+                                <option value="wind">Wind Turbine</option>
+                                <option value="battery">Battery</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-2">Device ID</label>
+                            <input type="text" id="sim-device-id" class="input-field" value="1" placeholder="1">
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center gap-4">
+                        <label class="flex items-center gap-2 text-sm text-gray-400">
+                            <input type="checkbox" id="sim-auto" class="w-4 h-4 rounded">
+                            Auto-publish every
+                        </label>
+                        <input type="number" id="sim-interval" class="input-field w-20 py-1 px-2" value="5" min="1">
+                        <span class="text-sm text-gray-400">seconds</span>
+                    </div>
+                    
+                    <div class="flex gap-3">
+                        <button id="btn-sim-once" class="btn-primary flex-1" disabled>
+                            <i data-lucide="zap" class="w-4 h-4 inline mr-2"></i>
+                            Publish Once
+                        </button>
+                        <button id="btn-sim-start" class="btn-secondary flex-1" disabled>
+                            <i data-lucide="play" class="w-4 h-4 inline mr-2"></i>
+                            Start Auto
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Message Log -->
+        <div class="glass-card p-6 mt-8">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-bold flex items-center gap-2">
+                    <i data-lucide="scroll-text" class="w-5 h-5 text-purple-400"></i>
+                    Message Log
+                </h2>
+                <button id="btn-clear-log" class="btn-secondary text-xs py-1 px-3">
+                    <i data-lucide="trash-2" class="w-3 h-3 inline mr-1"></i>
+                    Clear
+                </button>
+            </div>
+            <div id="message-log" class="bg-dark-bg rounded-lg p-4 h-64 overflow-y-auto font-mono text-sm">
+                <div class="log-entry log-info">[INFO] MQTT Settings page loaded. Configure your broker and connect.</div>
+            </div>
+        </div>
+
+        <!-- Instructions -->
+        <div class="glass-card p-6 mt-8">
+            <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+                <i data-lucide="book-open" class="w-5 h-5 text-purple-400"></i>
+                Setup Instructions
+            </h2>
+            
+            <div class="grid md:grid-cols-2 gap-6 text-sm text-gray-400">
+                <div>
+                    <h3 class="font-semibold text-white mb-2">1. Run an MQTT Broker</h3>
+                    <p class="mb-2">You need an MQTT broker with WebSocket support. Options:</p>
+                    <ul class="list-disc list-inside space-y-1 ml-2">
+                        <li><strong>Mosquitto:</strong> <code class="bg-dark-bg px-1 rounded">mosquitto -c mosquitto.conf</code></li>
+                        <li><strong>EMQX:</strong> Free cloud or self-hosted</li>
+                        <li><strong>HiveMQ:</strong> Cloud broker with free tier</li>
+                    </ul>
+                    <p class="mt-2 text-xs">Example mosquitto.conf for WebSocket:</p>
+                    <pre class="bg-dark-bg p-2 rounded mt-1 text-xs overflow-x-auto">listener 1883
+listener 9001
+protocol websockets
+allow_anonymous true</pre>
+                </div>
+                
+                <div>
+                    <h3 class="font-semibold text-white mb-2">2. ESP32 Topic Format</h3>
+                    <p class="mb-2">Devices should publish to:</p>
+                    <code class="block bg-dark-bg p-2 rounded text-purple-400">energy/{type}/{device_id}/telemetry</code>
+                    <p class="mt-2">Example topics:</p>
+                    <ul class="list-disc list-inside space-y-1 ml-2 text-xs">
+                        <li><code>energy/solar/1/telemetry</code></li>
+                        <li><code>energy/wind/turbine_a/telemetry</code></li>
+                        <li><code>energy/battery/main/telemetry</code></li>
+                    </ul>
+                    
+                    <h3 class="font-semibold text-white mt-4 mb-2">3. Payload Format</h3>
+                    <pre class="bg-dark-bg p-2 rounded text-xs overflow-x-auto">{
+  "voltage": 48.5,
+  "current": 12.3,
+  "power": 596.55,
+  "energy": 1250.5,
+  "timestamp": 1706969200000
+}</pre>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+    (function() {
+        // DOM Elements
+        const brokerUrlInput = document.getElementById('broker-url');
+        const usernameInput = document.getElementById('mqtt-username');
+        const passwordInput = document.getElementById('mqtt-password');
+        const clientIdInput = document.getElementById('client-id');
+        const btnConnect = document.getElementById('btn-connect');
+        const btnDisconnect = document.getElementById('btn-disconnect');
+        const btnSaveConfig = document.getElementById('btn-save-config');
+        const subscribeTopicInput = document.getElementById('subscribe-topic');
+        const btnSubscribe = document.getElementById('btn-subscribe');
+        const subscriptionsList = document.getElementById('subscriptions-list');
+        const publishTopicInput = document.getElementById('publish-topic');
+        const publishPayloadInput = document.getElementById('publish-payload');
+        const publishRetainCheckbox = document.getElementById('publish-retain');
+        const publishQosSelect = document.getElementById('publish-qos');
+        const btnPublish = document.getElementById('btn-publish');
+        const messageLog = document.getElementById('message-log');
+        const btnClearLog = document.getElementById('btn-clear-log');
+        const mqttStatusEl = document.getElementById('mqtt-status');
+        const statusTextEl = document.getElementById('status-text');
+
+        // Simulator elements
+        const simTypeSelect = document.getElementById('sim-type');
+        const simDeviceIdInput = document.getElementById('sim-device-id');
+        const simAutoCheckbox = document.getElementById('sim-auto');
+        const simIntervalInput = document.getElementById('sim-interval');
+        const btnSimOnce = document.getElementById('btn-sim-once');
+        const btnSimStart = document.getElementById('btn-sim-start');
+
+        let simIntervalHandle = null;
+
+        // Initialize Lucide icons
+        lucide.createIcons();
+
+        // Load saved config into form
+        function loadConfigToForm() {
+            const cfg = MQTT_CLIENT.config;
+            brokerUrlInput.value = cfg.brokerUrl || '';
+            usernameInput.value = cfg.username || '';
+            passwordInput.value = cfg.password || '';
+            clientIdInput.value = cfg.clientId || '';
+        }
+        loadConfigToForm();
+
+        // Update UI based on connection status
+        function updateStatusUI(status) {
+            mqttStatusEl.className = 'status-badge';
+            
+            switch (status) {
+                case 'connected':
+                    mqttStatusEl.classList.add('status-connected');
+                    statusTextEl.textContent = 'Connected';
+                    btnConnect.disabled = true;
+                    btnDisconnect.disabled = false;
+                    btnPublish.disabled = false;
+                    btnSimOnce.disabled = false;
+                    btnSimStart.disabled = false;
+                    break;
+                case 'disconnected':
+                case 'offline':
+                    mqttStatusEl.classList.add('status-disconnected');
+                    statusTextEl.textContent = 'Disconnected';
+                    btnConnect.disabled = false;
+                    btnDisconnect.disabled = true;
+                    btnPublish.disabled = true;
+                    btnSimOnce.disabled = true;
+                    btnSimStart.disabled = true;
+                    stopSimulator();
+                    break;
+                case 'reconnecting':
+                    mqttStatusEl.classList.add('status-connecting');
+                    statusTextEl.textContent = 'Reconnecting...';
+                    break;
+                default:
+                    mqttStatusEl.classList.add('status-connecting');
+                    statusTextEl.textContent = status;
+            }
+        }
+
+        // Log message to the log panel
+        function log(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            const time = new Date().toLocaleTimeString();
+            entry.textContent = `[${time}] ${message}`;
+            messageLog.appendChild(entry);
+            messageLog.scrollTop = messageLog.scrollHeight;
+        }
+
+        // Update subscriptions list UI
+        function updateSubscriptionsUI() {
+            const subs = Array.from(MQTT_CLIENT.subscriptions.keys());
+            if (subs.length === 0) {
+                subscriptionsList.innerHTML = '<p class="text-gray-500 text-sm">No active subscriptions</p>';
+                return;
+            }
+            
+            subscriptionsList.innerHTML = subs.map(topic => `
+                <span class="topic-chip">
+                    ${topic}
+                    <button onclick="unsubscribeTopic('${topic}')" title="Unsubscribe">×</button>
+                </span>
+            `).join('');
+        }
+
+        // Global unsubscribe function
+        window.unsubscribeTopic = function(topic) {
+            MQTT_CLIENT.unsubscribe(topic);
+            updateSubscriptionsUI();
+            log(`Unsubscribed from: ${topic}`, 'info');
+        };
+
+        // Connect button
+        btnConnect.addEventListener('click', async () => {
+            const url = brokerUrlInput.value.trim();
+            if (!url) {
+                alert('Please enter the broker URL');
+                return;
+            }
+
+            btnConnect.disabled = true;
+            btnConnect.innerHTML = '<i data-lucide="loader" class="w-4 h-4 inline mr-2 animate-spin"></i> Connecting...';
+            lucide.createIcons();
+
+            try {
+                MQTT_CLIENT.config.brokerUrl = url;
+                MQTT_CLIENT.config.username = usernameInput.value.trim();
+                MQTT_CLIENT.config.password = passwordInput.value;
+                MQTT_CLIENT.config.clientId = clientIdInput.value.trim() || MQTT_CLIENT.config.clientId;
+
+                await MQTT_CLIENT.connect();
+                log(`Connected to ${url}`, 'success');
+            } catch (err) {
+                log(`Connection failed: ${err.message}`, 'error');
+                btnConnect.disabled = false;
+            }
+            
+            btnConnect.innerHTML = '<i data-lucide="plug" class="w-4 h-4 inline mr-2"></i> Connect';
+            lucide.createIcons();
+        });
+
+        // Disconnect button
+        btnDisconnect.addEventListener('click', () => {
+            MQTT_CLIENT.disconnect();
+            log('Disconnected from broker', 'info');
+        });
+
+        // Save config button
+        btnSaveConfig.addEventListener('click', () => {
+            MQTT_CLIENT.config.brokerUrl = brokerUrlInput.value.trim();
+            MQTT_CLIENT.config.username = usernameInput.value.trim();
+            MQTT_CLIENT.config.password = passwordInput.value;
+            MQTT_CLIENT.config.clientId = clientIdInput.value.trim() || MQTT_CLIENT.config.clientId;
+            MQTT_CLIENT.saveConfig();
+            log('Configuration saved to localStorage', 'success');
+            alert('Configuration saved!');
+        });
+
+        // Subscribe button
+        btnSubscribe.addEventListener('click', () => {
+            const topic = subscribeTopicInput.value.trim();
+            if (!topic) {
+                alert('Please enter a topic');
+                return;
+            }
+            MQTT_CLIENT.subscribe(topic);
+            updateSubscriptionsUI();
+            log(`Subscribed to: ${topic}`, 'success');
+            subscribeTopicInput.value = '';
+        });
+
+        // Quick subscribe buttons
+        document.querySelectorAll('[data-topic]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const topic = btn.dataset.topic;
+                MQTT_CLIENT.subscribe(topic);
+                updateSubscriptionsUI();
+                log(`Subscribed to: ${topic}`, 'success');
+            });
+        });
+
+        // Publish button
+        btnPublish.addEventListener('click', () => {
+            const topic = publishTopicInput.value.trim();
+            const payload = publishPayloadInput.value.trim();
+            
+            if (!topic) {
+                alert('Please enter a topic');
+                return;
+            }
+
+            let message = payload;
+            try {
+                message = JSON.parse(payload);
+            } catch {
+                // Keep as string
+            }
+
+            const options = {
+                qos: parseInt(publishQosSelect.value),
+                retain: publishRetainCheckbox.checked
+            };
+
+            MQTT_CLIENT.publish(topic, message, options);
+            log(`Published to ${topic}: ${payload.slice(0, 100)}...`, 'success');
+        });
+
+        // Clear log button
+        btnClearLog.addEventListener('click', () => {
+            messageLog.innerHTML = '';
+            log('Log cleared', 'info');
+        });
+
+        // Generate simulated telemetry
+        function generateTelemetry(type) {
+            const now = Date.now();
+            
+            switch (type) {
+                case 'solar':
+                    return {
+                        voltage: +(45 + Math.random() * 10).toFixed(2),
+                        current: +(5 + Math.random() * 15).toFixed(2),
+                        power: +(200 + Math.random() * 800).toFixed(2),
+                        energy: +(1000 + Math.random() * 500).toFixed(2),
+                        temperature: +(25 + Math.random() * 20).toFixed(1),
+                        efficiency: +(85 + Math.random() * 10).toFixed(1),
+                        timestamp: now
+                    };
+                case 'wind':
+                    return {
+                        voltage: +(380 + Math.random() * 40).toFixed(2),
+                        current: +(10 + Math.random() * 30).toFixed(2),
+                        power: +(500 + Math.random() * 2000).toFixed(2),
+                        rpm: Math.floor(500 + Math.random() * 1000),
+                        windSpeed: +(5 + Math.random() * 15).toFixed(1),
+                        temperature: +(30 + Math.random() * 25).toFixed(1),
+                        timestamp: now
+                    };
+                case 'battery':
+                    return {
+                        voltage: +(48 + Math.random() * 6).toFixed(2),
+                        current: +(-20 + Math.random() * 40).toFixed(2),
+                        soc: +(20 + Math.random() * 75).toFixed(1),
+                        temperature: +(20 + Math.random() * 15).toFixed(1),
+                        capacity: +(90 + Math.random() * 10).toFixed(1),
+                        cycles: Math.floor(100 + Math.random() * 400),
+                        timestamp: now
+                    };
+                default:
+                    return { value: Math.random() * 100, timestamp: now };
+            }
+        }
+
+        // Publish simulated telemetry
+        function publishSimTelemetry() {
+            const type = simTypeSelect.value;
+            const deviceId = simDeviceIdInput.value.trim() || '1';
+            const topic = `energy/${type}/${deviceId}/telemetry`;
+            const payload = generateTelemetry(type);
+            
+            MQTT_CLIENT.publish(topic, payload, { qos: 1 });
+            log(`[SIM] Published to ${topic}`, 'success');
+        }
+
+        // Simulator - publish once
+        btnSimOnce.addEventListener('click', publishSimTelemetry);
+
+        // Simulator - start/stop auto
+        btnSimStart.addEventListener('click', () => {
+            if (simIntervalHandle) {
+                stopSimulator();
+            } else {
+                const interval = parseInt(simIntervalInput.value) * 1000 || 5000;
+                simIntervalHandle = setInterval(publishSimTelemetry, interval);
+                btnSimStart.innerHTML = '<i data-lucide="square" class="w-4 h-4 inline mr-2"></i> Stop Auto';
+                lucide.createIcons();
+                log(`[SIM] Auto-publish started (every ${interval/1000}s)`, 'info');
+            }
+        });
+
+        function stopSimulator() {
+            if (simIntervalHandle) {
+                clearInterval(simIntervalHandle);
+                simIntervalHandle = null;
+                btnSimStart.innerHTML = '<i data-lucide="play" class="w-4 h-4 inline mr-2"></i> Start Auto';
+                lucide.createIcons();
+                log('[SIM] Auto-publish stopped', 'info');
+            }
+        }
+
+        // Listen for MQTT status changes
+        MQTT_CLIENT.onStatus((status, error) => {
+            updateStatusUI(status);
+            if (error) {
+                log(`Status: ${status} - ${error}`, 'error');
+            } else {
+                log(`Status: ${status}`, 'info');
+            }
+        });
+
+        // Listen for incoming messages
+        MQTT_CLIENT.onMessage((topic, payload) => {
+            const payloadStr = typeof payload === 'object' ? JSON.stringify(payload) : String(payload);
+            log(`[MSG] ${topic}: ${payloadStr.slice(0, 200)}${payloadStr.length > 200 ? '...' : ''}`, 'message');
+        });
+
+        // Initialize UI
+        updateSubscriptionsUI();
+        updateStatusUI('disconnected');
+
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🛡️ Admin Panel - Energy Monitoring Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#8b5cf6',
+                        'dark-bg': '#0a0a0a',
+                        'card-bg': '#1a1a1a',
+                        'border-color': '#2a2a2a'
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #0f0f0f 100%);
+            color: #f3f4f6;
+            min-height: 100vh;
+        }
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 260px;
+            height: 100vh;
+            background: linear-gradient(180deg, #141414 0%, #1a1a1a 100%);
+            border-right: 1px solid #2a2a2a;
+            padding: 24px;
+            z-index: 100;
+            overflow-y: auto;
+        }
+        .sidebar-header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 32px;
+            padding-bottom: 24px;
+            border-bottom: 1px solid #2a2a2a;
+        }
+        .sidebar-nav { display: flex; flex-direction: column; gap: 6px; }
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border-radius: 12px;
+            color: #9ca3af;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        .nav-item:hover { background: rgba(255,255,255,0.05); color: #fff; }
+        .nav-item.active {
+            background: linear-gradient(135deg, rgba(139,92,246,0.2) 0%, rgba(139,92,246,0.1) 100%);
+            color: #a78bfa;
+        }
+        .main-content {
+            margin-left: 260px;
+            min-height: 100vh;
+            padding: 32px;
+        }
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+        }
+        .gradient-text {
+            background: linear-gradient(135deg, #c4b5fd 0%, #8b5cf6 50%, #7c3aed 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .card {
+            background: linear-gradient(145deg, #1a1a1a 0%, #1f1f1f 100%);
+            border: 1px solid #2a2a2a;
+            border-radius: 20px;
+            overflow: hidden;
+            transition: all 0.3s;
+        }
+        .card:hover { border-color: #3a3a3a; }
+        .card-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #2a2a2a;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .card-body { padding: 24px; }
+        .stat-card {
+            background: linear-gradient(145deg, #1a1a1a 0%, #1f1f1f 100%);
+            border: 1px solid #2a2a2a;
+            border-radius: 16px;
+            padding: 24px;
+        }
+        .btn {
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(139,92,246,0.3);
+        }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(139,92,246,0.4); }
+        .btn-secondary { background: #2a2a2a; color: #f3f4f6; }
+        .btn-secondary:hover { background: #3a3a3a; }
+        .btn-danger { background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%); color: white; }
+        .btn-sm { padding: 6px 12px; font-size: 12px; }
+        .input-field {
+            background: #0a0a0a;
+            border: 1px solid #2a2a2a;
+            border-radius: 10px;
+            padding: 12px 16px;
+            color: #f3f4f6;
+            width: 100%;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        .input-field:focus {
+            outline: none;
+            border-color: #8b5cf6;
+            box-shadow: 0 0 0 3px rgba(139,92,246,0.1);
+        }
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .data-table th, .data-table td {
+            padding: 14px 16px;
+            text-align: left;
+            border-bottom: 1px solid #2a2a2a;
+        }
+        .data-table th {
+            background: rgba(0,0,0,0.3);
+            font-weight: 600;
+            color: #9ca3af;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .data-table tr:hover td { background: rgba(255,255,255,0.02); }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .badge-success { background: rgba(34,197,94,0.15); color: #4ade80; }
+        .badge-warning { background: rgba(245,158,11,0.15); color: #fbbf24; }
+        .badge-danger { background: rgba(239,68,68,0.15); color: #f87171; }
+        .permission-tag {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 500;
+            background: rgba(139,92,246,0.15);
+            color: #a78bfa;
+            margin: 2px;
+        }
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 20px;
+            width: 100%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #2a2a2a;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-body { padding: 24px; }
+        .modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid #2a2a2a;
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+        .checkbox-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px;
+            background: rgba(255,255,255,0.02);
+            border: 1px solid #2a2a2a;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .checkbox-item:hover { border-color: #3a3a3a; background: rgba(255,255,255,0.04); }
+        .checkbox-item.checked { border-color: #8b5cf6; background: rgba(139,92,246,0.1); }
+        .checkbox-item input { width: 16px; height: 16px; accent-color: #8b5cf6; }
+        .user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 14px;
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .group-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 4px;
+            display: inline-block;
+        }
+        @media (max-width: 1024px) {
+            .sidebar { width: 80px; padding: 16px; }
+            .sidebar-header span, .nav-item span { display: none; }
+            .main-content { margin-left: 80px; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <span style="font-size:28px;">🛡️</span>
+            <span style="font-size:18px;font-weight:700;" class="gradient-text">Admin Panel</span>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="nav-item active" onclick="switchTab('dashboard')">
+                <i data-lucide="layout-dashboard" style="width:20px;height:20px;"></i>
+                <span>Dashboard</span>
+            </div>
+            <div class="nav-item" onclick="switchTab('users')">
+                <i data-lucide="users" style="width:20px;height:20px;"></i>
+                <span>Users</span>
+            </div>
+            <div class="nav-item" onclick="switchTab('groups')">
+                <i data-lucide="shield" style="width:20px;height:20px;"></i>
+                <span>Groups</span>
+            </div>
+            <div class="nav-item" onclick="switchTab('permissions')">
+                <i data-lucide="key" style="width:20px;height:20px;"></i>
+                <span>Permissions</span>
+            </div>
+            <div class="nav-item" onclick="switchTab('audit')">
+                <i data-lucide="scroll-text" style="width:20px;height:20px;"></i>
+                <span>Audit Logs</span>
+            </div>
+            <div style="flex:1;min-height:40px;"></div>
+            <div class="nav-item" onclick="window.location.href='index.html'">
+                <i data-lucide="home" style="width:20px;height:20px;"></i>
+                <span>Back to App</span>
+            </div>
+            <div class="nav-item" onclick="logout()" style="color:#f87171;">
+                <i data-lucide="log-out" style="width:20px;height:20px;"></i>
+                <span>Logout</span>
+            </div>
+        </nav>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Dashboard Tab -->
+        <div id="tab-dashboard" class="tab-content active">
+            <div class="page-header">
+                <div>
+                    <h1 style="font-size:28px;font-weight:800;" class="gradient-text">Admin Dashboard</h1>
+                    <p style="color:#6b7280;margin-top:4px;">Welcome back, <span id="adminName">Admin</span></p>
+                </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px;margin-bottom:32px;">
+                <div class="stat-card">
+                    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+                        <div style="width:44px;height:44px;border-radius:12px;background:rgba(59,130,246,0.15);display:flex;align-items:center;justify-content:center;">
+                            <i data-lucide="users" style="width:22px;height:22px;color:#3b82f6;"></i>
+                        </div>
+                        <span style="font-size:12px;color:#6b7280;font-weight:600;text-transform:uppercase;">Total Users</span>
+                    </div>
+                    <p style="font-size:36px;font-weight:800;" id="totalUsers">0</p>
+                </div>
+                <div class="stat-card">
+                    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+                        <div style="width:44px;height:44px;border-radius:12px;background:rgba(139,92,246,0.15);display:flex;align-items:center;justify-content:center;">
+                            <i data-lucide="shield" style="width:22px;height:22px;color:#8b5cf6;"></i>
+                        </div>
+                        <span style="font-size:12px;color:#6b7280;font-weight:600;text-transform:uppercase;">Groups</span>
+                    </div>
+                    <p style="font-size:36px;font-weight:800;" id="totalGroups">0</p>
+                </div>
+                <div class="stat-card">
+                    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+                        <div style="width:44px;height:44px;border-radius:12px;background:rgba(245,158,11,0.15);display:flex;align-items:center;justify-content:center;">
+                            <i data-lucide="key" style="width:22px;height:22px;color:#f59e0b;"></i>
+                        </div>
+                        <span style="font-size:12px;color:#6b7280;font-weight:600;text-transform:uppercase;">Permissions</span>
+                    </div>
+                    <p style="font-size:36px;font-weight:800;" id="totalPermissions">8</p>
+                </div>
+                <div class="stat-card">
+                    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+                        <div style="width:44px;height:44px;border-radius:12px;background:rgba(16,185,129,0.15);display:flex;align-items:center;justify-content:center;">
+                            <i data-lucide="activity" style="width:22px;height:22px;color:#10b981;"></i>
+                        </div>
+                        <span style="font-size:12px;color:#6b7280;font-weight:600;text-transform:uppercase;">Active Today</span>
+                    </div>
+                    <p style="font-size:36px;font-weight:800;" id="activeToday">1</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h3 style="font-size:16px;font-weight:700;">Recent Activity</h3>
+                </div>
+                <div class="card-body" id="recentActivity">
+                    <p style="color:#6b7280;text-align:center;padding:20px;">Loading...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Users Tab -->
+        <div id="tab-users" class="tab-content">
+            <div class="page-header">
+                <div>
+                    <h1 style="font-size:28px;font-weight:800;" class="gradient-text">User Management</h1>
+                    <p style="color:#6b7280;margin-top:4px;">Manage user accounts and group assignments</p>
+                </div>
+                <button class="btn btn-primary" onclick="openCreateUserModal()">
+                    <i data-lucide="user-plus" style="width:18px;height:18px;"></i>
+                    Add User
+                </button>
+            </div>
+
+            <div class="card">
+                <div class="card-body" style="padding:0;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Email</th>
+                                <th>Groups</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Groups Tab -->
+        <div id="tab-groups" class="tab-content">
+            <div class="page-header">
+                <div>
+                    <h1 style="font-size:28px;font-weight:800;" class="gradient-text">Group Management</h1>
+                    <p style="color:#6b7280;margin-top:4px;">Create and manage permission groups</p>
+                </div>
+                <button class="btn btn-primary" onclick="openCreateGroupModal()">
+                    <i data-lucide="plus" style="width:18px;height:18px;"></i>
+                    Create Group
+                </button>
+            </div>
+
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px;" id="groupsGrid">
+            </div>
+        </div>
+
+        <!-- Permissions Tab -->
+        <div id="tab-permissions" class="tab-content">
+            <div class="page-header">
+                <div>
+                    <h1 style="font-size:28px;font-weight:800;" class="gradient-text">Permission Reference</h1>
+                    <p style="color:#6b7280;margin-top:4px;">Available permissions in the system</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-body" style="padding:0;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Permission</th>
+                                <th>Category</th>
+                                <th>Description</th>
+                                <th>Groups Using</th>
+                            </tr>
+                        </thead>
+                        <tbody id="permissionsTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Audit Logs Tab -->
+        <div id="tab-audit" class="tab-content">
+            <div class="page-header">
+                <div>
+                    <h1 style="font-size:28px;font-weight:800;" class="gradient-text">Audit Logs</h1>
+                    <p style="color:#6b7280;margin-top:4px;">Track all system activities</p>
+                </div>
+                <button class="btn btn-secondary" onclick="refreshAuditLogs()">
+                    <i data-lucide="refresh-cw" style="width:18px;height:18px;"></i>
+                    Refresh
+                </button>
+            </div>
+
+            <div class="card">
+                <div class="card-body" style="padding:0;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Action</th>
+                                <th>User</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody id="auditTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create User Modal -->
+    <div class="modal-overlay" id="createUserModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 style="font-size:18px;font-weight:700;">Create New User</h3>
+                <button onclick="closeModal('createUserModal')" style="background:none;border:none;color:#6b7280;cursor:pointer;">
+                    <i data-lucide="x" style="width:20px;height:20px;"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="createUserForm">
+                    <div style="margin-bottom:16px;">
+                        <label style="display:block;font-size:14px;color:#9ca3af;margin-bottom:8px;">Full Name</label>
+                        <input type="text" class="input-field" id="newUserName" placeholder="John Doe" required>
+                    </div>
+                    <div style="margin-bottom:16px;">
+                        <label style="display:block;font-size:14px;color:#9ca3af;margin-bottom:8px;">Email Address</label>
+                        <input type="email" class="input-field" id="newUserEmail" placeholder="john@example.com" required>
+                    </div>
+                    <div style="margin-bottom:16px;">
+                        <label style="display:block;font-size:14px;color:#9ca3af;margin-bottom:8px;">Password</label>
+                        <input type="password" class="input-field" id="newUserPassword" placeholder="••••••••" required>
+                    </div>
+                    <div style="margin-bottom:16px;">
+                        <label style="display:block;font-size:14px;color:#9ca3af;margin-bottom:12px;">Assign to Groups</label>
+                        <div class="checkbox-grid" id="userGroupsCheckboxes">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('createUserModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="createUser()">Create User</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Group Modal -->
+    <div class="modal-overlay" id="createGroupModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 style="font-size:18px;font-weight:700;">Create New Group</h3>
+                <button onclick="closeModal('createGroupModal')" style="background:none;border:none;color:#6b7280;cursor:pointer;">
+                    <i data-lucide="x" style="width:20px;height:20px;"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="createGroupForm">
+                    <div style="margin-bottom:16px;">
+                        <label style="display:block;font-size:14px;color:#9ca3af;margin-bottom:8px;">Group Name</label>
+                        <input type="text" class="input-field" id="newGroupName" placeholder="e.g., Solar Operators" required>
+                    </div>
+                    <div style="margin-bottom:16px;">
+                        <label style="display:block;font-size:14px;color:#9ca3af;margin-bottom:8px;">Description</label>
+                        <input type="text" class="input-field" id="newGroupDescription" placeholder="Brief description">
+                    </div>
+                    <div style="margin-bottom:16px;">
+                        <label style="display:block;font-size:14px;color:#9ca3af;margin-bottom:8px;">Color</label>
+                        <input type="color" id="newGroupColor" value="#8b5cf6" style="width:60px;height:40px;border:none;border-radius:8px;cursor:pointer;">
+                    </div>
+                    <div style="margin-bottom:16px;">
+                        <label style="display:block;font-size:14px;color:#9ca3af;margin-bottom:12px;">Assign Permissions</label>
+                        <div class="checkbox-grid" id="groupPermissionsCheckboxes">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('createGroupModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="createGroup()">Create Group</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit User Modal -->
+    <div class="modal-overlay" id="editUserModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 style="font-size:18px;font-weight:700;">Edit User</h3>
+                <button onclick="closeModal('editUserModal')" style="background:none;border:none;color:#6b7280;cursor:pointer;">
+                    <i data-lucide="x" style="width:20px;height:20px;"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editUserId">
+                <div style="margin-bottom:16px;">
+                    <label style="display:block;font-size:14px;color:#9ca3af;margin-bottom:8px;">Full Name</label>
+                    <input type="text" class="input-field" id="editUserName" required>
+                </div>
+                <div style="margin-bottom:16px;">
+                    <label style="display:block;font-size:14px;color:#9ca3af;margin-bottom:8px;">Email Address</label>
+                    <input type="email" class="input-field" id="editUserEmail" required>
+                </div>
+                <div style="margin-bottom:16px;">
+                    <label style="display:block;font-size:14px;color:#9ca3af;margin-bottom:8px;">Status</label>
+                    <select class="input-field" id="editUserStatus">
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                    </select>
+                </div>
+                <div style="margin-bottom:16px;">
+                    <label style="display:block;font-size:14px;color:#9ca3af;margin-bottom:12px;">Groups</label>
+                    <div class="checkbox-grid" id="editUserGroupsCheckboxes">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('editUserModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="updateUser()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/auth.js"></script>
+    <script>
+        lucide.createIcons();
+
+        // Check admin access
+        const currentUser = AUTH.getCurrentUser();
+        if (!currentUser || !AUTH.hasPermission('system.admin')) {
+            window.location.href = 'login.html';
+        }
+
+        document.getElementById('adminName').textContent = currentUser?.name || 'Admin';
+
+        // Tab switching
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+            event.currentTarget.classList.add('active');
+            
+            // Load tab data
+            switch(tabName) {
+                case 'dashboard': loadDashboard(); break;
+                case 'users': loadUsers(); break;
+                case 'groups': loadGroups(); break;
+                case 'permissions': loadPermissions(); break;
+                case 'audit': loadAuditLogs(); break;
+            }
+        }
+
+        // Modal functions
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+        }
+
+        function openCreateUserModal() {
+            renderGroupCheckboxes('userGroupsCheckboxes');
+            document.getElementById('createUserForm').reset();
+            document.getElementById('createUserModal').classList.add('active');
+        }
+
+        function openCreateGroupModal() {
+            renderPermissionCheckboxes('groupPermissionsCheckboxes');
+            document.getElementById('createGroupForm').reset();
+            document.getElementById('createGroupModal').classList.add('active');
+        }
+
+        function renderGroupCheckboxes(containerId, selectedGroups = []) {
+            const groups = AUTH.getGroups();
+            const container = document.getElementById(containerId);
+            container.innerHTML = groups.map(group => `
+                <label class="checkbox-item ${selectedGroups.includes(group.id) ? 'checked' : ''}">
+                    <input type="checkbox" value="${group.id}" ${selectedGroups.includes(group.id) ? 'checked' : ''} onchange="this.parentElement.classList.toggle('checked')">
+                    <span class="group-color" style="background:${group.color};"></span>
+                    <span>${group.name}</span>
+                </label>
+            `).join('');
+        }
+
+        function renderPermissionCheckboxes(containerId, selectedPerms = []) {
+            const permissions = AUTH.getAllPermissions();
+            const container = document.getElementById(containerId);
+            container.innerHTML = permissions.map(perm => `
+                <label class="checkbox-item ${selectedPerms.includes(perm.id) ? 'checked' : ''}">
+                    <input type="checkbox" value="${perm.id}" ${selectedPerms.includes(perm.id) ? 'checked' : ''} onchange="this.parentElement.classList.toggle('checked')">
+                    <span>${perm.name}</span>
+                </label>
+            `).join('');
+        }
+
+        // Dashboard
+        function loadDashboard() {
+            const users = AUTH.getUsers();
+            const groups = AUTH.getGroups();
+            const logs = AUTH.getAuditLogs(10);
+
+            document.getElementById('totalUsers').textContent = users.length;
+            document.getElementById('totalGroups').textContent = groups.length;
+
+            const activityHtml = logs.length > 0 ? logs.map(log => {
+                const actor = users.find(u => u.id === log.actorId);
+                return `
+                    <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid #2a2a2a;">
+                        <div class="user-avatar">${actor?.name?.charAt(0) || '?'}</div>
+                        <div style="flex:1;">
+                            <p style="font-size:14px;font-weight:500;">${log.action.replace(/_/g, ' ')}</p>
+                            <p style="font-size:12px;color:#6b7280;">${actor?.name || 'System'} • ${new Date(log.timestamp).toLocaleString()}</p>
+                        </div>
+                    </div>
+                `;
+            }).join('') : '<p style="color:#6b7280;text-align:center;padding:20px;">No recent activity</p>';
+
+            document.getElementById('recentActivity').innerHTML = activityHtml;
+        }
+
+        // Users
+        function loadUsers() {
+            const users = AUTH.getUsers();
+            const groups = AUTH.getGroups();
+
+            const html = users.map(user => {
+                const userGroups = user.groups.map(gId => {
+                    const g = groups.find(gr => gr.id === gId);
+                    return g ? `<span class="permission-tag" style="background:${g.color}20;color:${g.color};">${g.name}</span>` : '';
+                }).join('');
+
+                return `
+                    <tr>
+                        <td>
+                            <div style="display:flex;align-items:center;gap:12px;">
+                                <div class="user-avatar">${user.name.charAt(0)}</div>
+                                <span style="font-weight:600;">${user.name}</span>
+                            </div>
+                        </td>
+                        <td style="color:#9ca3af;">${user.email}</td>
+                        <td>${userGroups || '<span style="color:#6b7280;">No groups</span>'}</td>
+                        <td><span class="badge ${user.status === 'active' ? 'badge-success' : 'badge-danger'}">${user.status}</span></td>
+                        <td style="color:#6b7280;font-size:13px;">${new Date(user.createdAt).toLocaleDateString()}</td>
+                        <td>
+                            <button class="btn btn-secondary btn-sm" onclick="openEditUserModal('${user.id}')">Edit</button>
+                            ${user.id !== 'usr_admin' ? `<button class="btn btn-danger btn-sm" style="margin-left:8px;" onclick="deleteUser('${user.id}')">Delete</button>` : ''}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            document.getElementById('usersTableBody').innerHTML = html;
+            lucide.createIcons();
+        }
+
+        function openEditUserModal(userId) {
+            const users = AUTH.getUsers();
+            const user = users.find(u => u.id === userId);
+            if (!user) return;
+
+            document.getElementById('editUserId').value = user.id;
+            document.getElementById('editUserName').value = user.name;
+            document.getElementById('editUserEmail').value = user.email;
+            document.getElementById('editUserStatus').value = user.status;
+            renderGroupCheckboxes('editUserGroupsCheckboxes', user.groups);
+            
+            document.getElementById('editUserModal').classList.add('active');
+        }
+
+        function createUser() {
+            const name = document.getElementById('newUserName').value;
+            const email = document.getElementById('newUserEmail').value;
+            const password = document.getElementById('newUserPassword').value;
+            const groups = Array.from(document.querySelectorAll('#userGroupsCheckboxes input:checked')).map(cb => cb.value);
+
+            if (!name || !email || !password) {
+                alert('Please fill in all required fields');
+                return;
+            }
+
+            const result = AUTH.createUser({ name, email, password, groups });
+            if (result.success) {
+                closeModal('createUserModal');
+                loadUsers();
+                alert('User created successfully!');
+            } else {
+                alert(result.error);
+            }
+        }
+
+        function updateUser() {
+            const userId = document.getElementById('editUserId').value;
+            const name = document.getElementById('editUserName').value;
+            const email = document.getElementById('editUserEmail').value;
+            const status = document.getElementById('editUserStatus').value;
+            const groups = Array.from(document.querySelectorAll('#editUserGroupsCheckboxes input:checked')).map(cb => cb.value);
+
+            const result = AUTH.updateUser(userId, { name, email, status, groups });
+            if (result.success) {
+                closeModal('editUserModal');
+                loadUsers();
+                alert('User updated successfully!');
+            } else {
+                alert(result.error);
+            }
+        }
+
+        function deleteUser(userId) {
+            if (!confirm('Are you sure you want to delete this user?')) return;
+            
+            const result = AUTH.deleteUser(userId);
+            if (result.success) {
+                loadUsers();
+                alert('User deleted successfully!');
+            } else {
+                alert(result.error);
+            }
+        }
+
+        // Groups
+        function loadGroups() {
+            const groups = AUTH.getGroups();
+            const users = AUTH.getUsers();
+
+            const html = groups.map(group => {
+                const memberCount = users.filter(u => u.groups.includes(group.id)).length;
+                const permissionTags = group.permissions.map(p => `<span class="permission-tag">${p}</span>`).join('');
+
+                return `
+                    <div class="card">
+                        <div class="card-header">
+                            <div style="display:flex;align-items:center;gap:12px;">
+                                <span class="group-color" style="background:${group.color};width:16px;height:16px;"></span>
+                                <div>
+                                    <h4 style="font-size:16px;font-weight:700;">${group.name}</h4>
+                                    <p style="font-size:12px;color:#6b7280;">${group.description || 'No description'}</p>
+                                </div>
+                            </div>
+                            ${group.id !== 'grp_admin' ? `
+                                <button class="btn btn-secondary btn-sm" onclick="deleteGroup('${group.id}')">
+                                    <i data-lucide="trash-2" style="width:14px;height:14px;"></i>
+                                </button>
+                            ` : ''}
+                        </div>
+                        <div class="card-body">
+                            <p style="font-size:13px;color:#6b7280;margin-bottom:12px;">${memberCount} member(s)</p>
+                            <div style="display:flex;flex-wrap:wrap;gap:4px;">
+                                ${permissionTags || '<span style="color:#6b7280;font-size:13px;">No permissions</span>'}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('groupsGrid').innerHTML = html;
+            lucide.createIcons();
+        }
+
+        function createGroup() {
+            const name = document.getElementById('newGroupName').value;
+            const description = document.getElementById('newGroupDescription').value;
+            const color = document.getElementById('newGroupColor').value;
+            const permissions = Array.from(document.querySelectorAll('#groupPermissionsCheckboxes input:checked')).map(cb => cb.value);
+
+            if (!name) {
+                alert('Please enter a group name');
+                return;
+            }
+
+            const result = AUTH.createGroup({ name, description, color, permissions });
+            if (result.success) {
+                closeModal('createGroupModal');
+                loadGroups();
+                alert('Group created successfully!');
+            } else {
+                alert(result.error);
+            }
+        }
+
+        function deleteGroup(groupId) {
+            if (!confirm('Are you sure you want to delete this group? Users will be removed from this group.')) return;
+            
+            const result = AUTH.deleteGroup(groupId);
+            if (result.success) {
+                loadGroups();
+                alert('Group deleted successfully!');
+            } else {
+                alert(result.error);
+            }
+        }
+
+        // Permissions
+        function loadPermissions() {
+            const permissions = AUTH.getAllPermissions();
+            const groups = AUTH.getGroups();
+
+            const html = permissions.map(perm => {
+                const usingGroups = groups.filter(g => g.permissions.includes(perm.id));
+                const groupTags = usingGroups.map(g => `<span class="permission-tag" style="background:${g.color}20;color:${g.color};">${g.name}</span>`).join('');
+
+                return `
+                    <tr>
+                        <td style="font-weight:600;">${perm.id}</td>
+                        <td><span class="badge" style="background:rgba(139,92,246,0.15);color:#a78bfa;">${perm.category}</span></td>
+                        <td style="color:#9ca3af;">${perm.description}</td>
+                        <td>${groupTags || '<span style="color:#6b7280;">None</span>'}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            document.getElementById('permissionsTableBody').innerHTML = html;
+        }
+
+        // Audit Logs
+        function loadAuditLogs() {
+            const logs = AUTH.getAuditLogs(100);
+            const users = AUTH.getUsers();
+
+            const html = logs.length > 0 ? logs.map(log => {
+                const actor = users.find(u => u.id === log.actorId);
+                return `
+                    <tr>
+                        <td style="color:#6b7280;font-size:13px;">${new Date(log.timestamp).toLocaleString()}</td>
+                        <td><span class="badge badge-${getActionBadge(log.action)}">${log.action.replace(/_/g, ' ')}</span></td>
+                        <td>${actor?.name || 'System'}</td>
+                        <td style="color:#6b7280;font-size:13px;">${JSON.stringify(log.details)}</td>
+                    </tr>
+                `;
+            }).join('') : '<tr><td colspan="4" style="text-align:center;color:#6b7280;padding:40px;">No audit logs</td></tr>';
+
+            document.getElementById('auditTableBody').innerHTML = html;
+        }
+
+        function getActionBadge(action) {
+            if (action.includes('FAILED') || action.includes('DELETE')) return 'danger';
+            if (action.includes('SUCCESS') || action.includes('CREATE')) return 'success';
+            return 'warning';
+        }
+
+        function refreshAuditLogs() {
+            loadAuditLogs();
+        }
+
+        // Logout
+        function logout() {
+            AUTH.logout();
+            window.location.href = 'login.html';
+        }
+
+        // Initial load
+        loadDashboard();
+    </script>
+</body>
+</html>
