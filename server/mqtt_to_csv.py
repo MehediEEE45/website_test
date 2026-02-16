@@ -27,6 +27,11 @@ except Exception:
     raise SystemExit("Please install required package: pip install paho-mqtt")
 
 try:
+    import requests
+except Exception:
+    requests = None
+
+try:
     from dotenv import load_dotenv
     load_dotenv(dotenv_path=Path(__file__).parent / '.env')
 except Exception:
@@ -62,7 +67,8 @@ def parse_broker_url(url: str):
 
 class MQTTToCSV:
     def __init__(self, broker: Optional[str], port: Optional[int], scheme: Optional[str], path: Optional[str],
-                 username: Optional[str], password: Optional[str], topic: str, outfile: str):
+                 username: Optional[str], password: Optional[str], topic: str, outfile: str,
+                 supabase_url: Optional[str] = None, supabase_key: Optional[str] = None):
         self.broker = broker
         self.port = port
         self.scheme = scheme
@@ -71,6 +77,8 @@ class MQTTToCSV:
         self.password = password
         self.topic = topic
         self.outfile = Path(outfile)
+        self.supabase_url = supabase_url
+        self.supabase_key = supabase_key
         # Choose transport: websockets for ws/wss, otherwise tcp
         transport = 'websockets' if (scheme in ('ws', 'wss')) else 'tcp'
         self.client = mqtt.Client(transport=transport)
@@ -148,6 +156,12 @@ class MQTTToCSV:
                 writer.writerow(row)
 
             print('Saved:', device_type, device_id, '->', self.outfile)
+            # Optionally forward to Supabase
+            if self.supabase_url and self.supabase_key:
+                try:
+                    self._send_to_supabase(payload, row, msg.topic)
+                except Exception as e:
+                    print('Supabase upload failed:', e)
         except Exception as e:
             print('Error processing message:', e)
 
@@ -170,6 +184,46 @@ class MQTTToCSV:
                 self.client.disconnect()
             except Exception:
                 pass
+
+    def _send_to_supabase(self, payload, row, topic):
+        if requests is None:
+            raise RuntimeError('requests is required for Supabase uploads (pip install requests)')
+
+        # Normalize payload
+        if isinstance(payload, dict):
+            p = payload
+        else:
+            try:
+                p = json.loads(row.get('raw_payload') or '{}')
+            except Exception:
+                p = {}
+
+        data = {
+            'ts': row.get('ts'),
+            'ts_iso': row.get('ts_iso'),
+            'topic': topic,
+            'device_type': row.get('device_type'),
+            'device_id': row.get('device_id'),
+            'voltage': p.get('bus_V') or p.get('voltage'),
+            'current': p.get('current_A') or p.get('current'),
+            'power': p.get('power_W') or p.get('power'),
+            'soc': p.get('soc_percent') or p.get('soc'),
+            'soh': p.get('soh_percent') or p.get('soh'),
+            'uptime_ms': p.get('uptime_ms') or p.get('uptime'),
+            'raw_payload': row.get('raw_payload')
+        }
+
+        url = self.supabase_url.rstrip('/') + '/rest/v1/telemetry'
+        headers = {
+            'apikey': self.supabase_key,
+            'Authorization': f'Bearer {self.supabase_key}',
+            'Content-Type': 'application/json',
+            'Prefer': 'return=representation'
+        }
+
+        resp = requests.post(url, headers=headers, json=[data], timeout=10)
+        if resp.status_code not in (200, 201):
+            raise RuntimeError(f'Supabase insert failed: {resp.status_code} {resp.text}')
 
 
 def main():
@@ -210,11 +264,13 @@ def main():
 
     username = args.username or env_user
     password = args.password or env_pass
+    supabase_url = os.environ.get('SUPABASE_URL') or os.environ.get('DB_SUPABASE_URL')
+    supabase_key = os.environ.get('SUPABASE_KEY') or os.environ.get('DB_SUPABASE_KEY')
 
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
-    svc = MQTTToCSV(broker, port, scheme, path, username, password, args.topic, args.outfile)
+    svc = MQTTToCSV(broker, port, scheme, path, username, password, args.topic, args.outfile, supabase_url, supabase_key)
     svc.run()
 
 
