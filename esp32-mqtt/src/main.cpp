@@ -12,8 +12,16 @@
 #endif
 
 // --- CONFIG: fill these in ---
-const char* WIFI_SSID = "MiM";
-const char* WIFI_PASSWORD = "Ha20202021";
+// Multiple WiFi credentials: the ESP32 will try these in order until one connects.
+struct WifiCred { const char* ssid; const char* password; };
+static const WifiCred WIFI_CREDENTIALS[] = {
+  { "MiM", "Ha20202021" },
+  { "Teachers_WiFi_SUST", "SUST11s34" },
+  {"SUST WiFi" ,"SUST10s10"},
+
+  // Add additional networks here, e.g.
+  // { "HomeSSID", "homepassword" },
+};
 const char* MQTT_BROKER = "0d34f5789e1e4a669367abfe5bd45b15.s1.eu.hivemq.cloud"; // provided
 const int MQTT_PORT = 8883; // TLS port (use 8884 + /mqtt path for WebSockets browser)
 const char* MQTT_USER = "battery"; // HiveMQ Cloud user (if any)
@@ -82,15 +90,32 @@ void callback(char* topic, byte* payload, unsigned int length) {
 }
 
 void connectWiFi() {
-  Serial.printf("Connecting to %s\n", WIFI_SSID);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print('.');
+  Serial.println("Connecting to WiFi networks...");
+  WiFi.mode(WIFI_STA);
+  size_t credsCount = sizeof(WIFI_CREDENTIALS) / sizeof(WIFI_CREDENTIALS[0]);
+  for (size_t i = 0; i < credsCount; ++i) {
+    const char* ssid = WIFI_CREDENTIALS[i].ssid;
+    const char* pass = WIFI_CREDENTIALS[i].password;
+    Serial.printf("Trying SSID: %s\n", ssid);
+    WiFi.disconnect(true);
+    delay(100);
+    WiFi.begin(ssid, pass);
+    unsigned long start = millis();
+    const unsigned long timeout = 15000; // 15 seconds per network
+    while (WiFi.status() != WL_CONNECTED && (millis() - start) < timeout) {
+      delay(500);
+      Serial.print('.');
+    }
+    if (WiFi.status() == WL_CONNECTED) {
+      Serial.println("\nWiFi connected");
+      Serial.print("IP: ");
+      Serial.println(WiFi.localIP());
+      return;
+    }
+    Serial.println();
+    Serial.printf("Failed to connect to %s\n", ssid);
   }
-  Serial.println("\nWiFi connected");
-  Serial.print("IP: ");
-  Serial.println(WiFi.localIP());
+  Serial.println("Could not connect to any configured WiFi networks; will retry later.");
 }
 
 bool mqttConnect() {
