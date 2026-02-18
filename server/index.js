@@ -196,6 +196,289 @@ app.post('/api/readings', (req, res) => {
   res.json({ success: true });
 });
 
+// ===== MongoDB Read Endpoints (for website to fetch historical data) =====
+
+// Get recent readings from MongoDB
+app.get('/api/mongo/readings/:deviceId', async (req, res) => {
+  if (!mongoCol) return res.status(503).json({ error: 'MongoDB not connected' });
+  try {
+    const deviceId = req.params.deviceId;
+    const limit = parseInt(req.query.limit || '100', 10);
+    const docs = await mongoCol
+      .find({ device_id: deviceId })
+      .sort({ ts: -1 })
+      .limit(limit)
+      .toArray();
+    res.json(docs.reverse()); // reverse to get chronological order
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Get readings from MongoDB within a date range
+app.get('/api/mongo/readings/:deviceId/range', async (req, res) => {
+  if (!mongoCol) return res.status(503).json({ error: 'MongoDB not connected' });
+  try {
+    const deviceId = req.params.deviceId;
+    const from = req.query.from ? new Date(req.query.from) : new Date(Date.now() - 24*60*60*1000);
+    const to = req.query.to ? new Date(req.query.to) : new Date();
+    const docs = await mongoCol
+      .find({ device_id: deviceId, ts: { $gte: from.getTime(), $lte: to.getTime() } })
+      .sort({ ts: 1 })
+      .toArray();
+    res.json(docs);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Get statistics (avg, min, max) from MongoDB for the last N hours
+app.get('/api/mongo/stats/:deviceId', async (req, res) => {
+  if (!mongoCol) return res.status(503).json({ error: 'MongoDB not connected' });
+  try {
+    const deviceId = req.params.deviceId;
+    const hours = parseInt(req.query.hours || '24', 10);
+    const cutoffTime = Date.now() - (hours * 60 * 60 * 1000);
+    
+    const docs = await mongoCol
+      .find({ device_id: deviceId, ts: { $gte: cutoffTime } })
+      .toArray();
+    
+    if (docs.length === 0) {
+      return res.json({ device_id: deviceId, count: 0, voltage: null, current: null, power: null, soc: null });
+    }
+
+    const getNumbers = (key) => docs.map(d => {
+      const val = d.payload ? (d.payload[key] || d.payload[key.replace('_A', '').replace('_W', '').replace('_V', '')]) : null;
+      return typeof val === 'number' ? val : null;
+    }).filter(v => v !== null);
+
+    const calcStats = (arr) => {
+      if (arr.length === 0) return null;
+      const avg = arr.reduce((a, b) => a + b, 0) / arr.length;
+      const min = Math.min(...arr);
+      const max = Math.max(...arr);
+      return { avg: parseFloat(avg.toFixed(2)), min: parseFloat(min.toFixed(2)), max: parseFloat(max.toFixed(2)) };
+    };
+
+    res.json({
+      device_id: deviceId,
+      count: docs.length,
+      hours,
+      voltage: calcStats(getNumbers('bus_V')),
+      current: calcStats(getNumbers('current_A')),
+      power: calcStats(getNumbers('power_W')),
+      soc: calcStats(getNumbers('soc_percent')),
+      soh: calcStats(getNumbers('soh_percent')),
+      ts_range: { from: docs[0].ts, to: docs[docs.length - 1].ts }
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ===== 30-Day Analysis Endpoints =====
+
+// Get 30-day readings
+app.get('/api/mongo/readings/30days/:deviceId', async (req, res) => {
+  if (!mongoCol) return res.status(503).json({ error: 'MongoDB not connected' });
+  try {
+    const deviceId = req.params.deviceId;
+    const days = parseInt(req.query.days || '30', 10);
+    const cutoffTime = Date.now() - (days * 24 * 60 * 60 * 1000);
+    
+    const docs = await mongoCol
+      .find({ device_id: deviceId, ts: { $gte: cutoffTime } })
+      .sort({ ts: 1 })
+      .toArray();
+    
+    res.json({ device_id: deviceId, days, count: docs.length, data: docs });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Get 30-day stats (aggregate)
+app.get('/api/mongo/stats/30days/:deviceId', async (req, res) => {
+  if (!mongoCol) return res.status(503).json({ error: 'MongoDB not connected' });
+  try {
+    const deviceId = req.params.deviceId;
+    const days = parseInt(req.query.days || '30', 10);
+    const cutoffTime = Date.now() - (days * 24 * 60 * 60 * 1000);
+    
+    const docs = await mongoCol
+      .find({ device_id: deviceId, ts: { $gte: cutoffTime } })
+      .toArray();
+    
+    if (docs.length === 0) {
+      return res.json({ device_id: deviceId, days, count: 0, stats: null });
+    }
+
+    const getNumbers = (key) => docs.map(d => {
+      const val = d.payload ? (d.payload[key] || d.payload[key.replace('_A', '').replace('_W', '')]) : null;
+      return typeof val === 'number' ? val : null;
+    }).filter(v => v !== null);
+
+    const calcStats = (arr) => {
+      if (arr.length === 0) return null;
+      arr.sort((a, b) => a - b);
+      const avg = arr.reduce((a, b) => a + b, 0) / arr.length;
+      const min = arr[0];
+      const max = arr[arr.length - 1];
+      const median = arr.length % 2 === 0 ? (arr[arr.length/2 - 1] + arr[arr.length/2]) / 2 : arr[Math.floor(arr.length/2)];
+      return { avg: parseFloat(avg.toFixed(2)), min: parseFloat(min.toFixed(2)), max: parseFloat(max.toFixed(2)), median: parseFloat(median.toFixed(2)), count: arr.length };
+    };
+
+    const voltages = getNumbers('bus_V');
+    const currents = getNumbers('current_A');
+    const powers = getNumbers('power_W');
+    const socs = getNumbers('soc_percent');
+    const sohs = getNumbers('soh_percent');
+    
+    // Calculate energy (kWh) - assuming 5 second intervals
+    const energyKwh = (powers.reduce((a, b) => a + b, 0) * 5 / 3600 / 1000).toFixed(2);
+
+    res.json({
+      device_id: deviceId,
+      days,
+      total_records: docs.length,
+      timestamp_range: { from: new Date(docs[0].ts), to: new Date(docs[docs.length-1].ts) },
+      stats: {
+        voltage: calcStats(voltages),
+        current: calcStats(currents),
+        power: calcStats(powers),
+        energy_kwh: energyKwh,
+        soc: calcStats(socs),
+        soh: calcStats(sohs)
+      }
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Get daily aggregates (for trend chart)
+app.get('/api/mongo/trends/30days/:deviceId', async (req, res) => {
+  if (!mongoCol) return res.status(503).json({ error: 'MongoDB not connected' });
+  try {
+    const deviceId = req.params.deviceId;
+    const days = parseInt(req.query.days || '30', 10);
+    const cutoffTime = Date.now() - (days * 24 * 60 * 60 * 1000);
+    
+    const docs = await mongoCol
+      .find({ device_id: deviceId, ts: { $gte: cutoffTime } })
+      .sort({ ts: 1 })
+      .toArray();
+    
+    if (docs.length === 0) return res.json({ device_id: deviceId, trends: [] });
+
+    // Group by day
+    const byDay = {};
+    docs.forEach(doc => {
+      const date = new Date(doc.ts).toISOString().split('T')[0]; // YYYY-MM-DD
+      if (!byDay[date]) byDay[date] = [];
+      byDay[date].push(doc);
+    });
+
+    const trends = Object.entries(byDay).map(([date, dayDocs]) => {
+      const voltages = dayDocs.map(d => d.payload?.bus_V).filter(v => v !== null && v !== undefined);
+      const currents = dayDocs.map(d => d.payload?.current_A).filter(v => v !== null && v !== undefined);
+      const powers = dayDocs.map(d => d.payload?.power_W).filter(v => v !== null && v !== undefined);
+      const socs = dayDocs.map(d => d.payload?.soc_percent).filter(v => v !== null && v !== undefined);
+      
+      const avg = (arr) => arr.length ? (arr.reduce((a,b) => a+b, 0) / arr.length).toFixed(2) : null;
+      const energyKwh = powers.length ? (powers.reduce((a,b) => a+b, 0) * 5 / 3600 / 1000).toFixed(2) : 0;
+      
+      return {
+        date,
+        count: dayDocs.length,
+        voltage_avg: avg(voltages),
+        current_avg: avg(currents),
+        power_avg: avg(powers),
+        energy_kwh: energyKwh,
+        soc_avg: avg(socs)
+      };
+    });
+
+    res.json({ device_id: deviceId, days, total_days: trends.length, trends });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Export as CSV
+app.get('/api/mongo/export/csv/:deviceId', async (req, res) => {
+  if (!mongoCol) return res.status(503).json({ error: 'MongoDB not connected' });
+  try {
+    const deviceId = req.params.deviceId;
+    const days = parseInt(req.query.days || '30', 10);
+    const cutoffTime = Date.now() - (days * 24 * 60 * 60 * 1000);
+    
+    const docs = await mongoCol
+      .find({ device_id: deviceId, ts: { $gte: cutoffTime } })
+      .sort({ ts: 1 })
+      .toArray();
+    
+    if (docs.length === 0) return res.status(404).json({ error: 'No data found' });
+
+    // Create CSV
+    let csv = 'Timestamp,Date,Voltage (V),Current (A),Power (W),SoC (%),SoH (%),Uptime (ms)\n';
+    docs.forEach(doc => {
+      const p = doc.payload || {};
+      const date = new Date(doc.ts);
+      const voltage = p.bus_V || p.voltage || '';
+      const current = p.current_A || p.current || '';
+      const power = p.power_W || p.power || '';
+      const soc = p.soc_percent || '';
+      const soh = p.soh_percent || '';
+      const uptime = p.uptime_ms || '';
+      csv += `${doc.ts},"${date.toISOString()}",${voltage},${current},${power},${soc},${soh},${uptime}\n`;
+    });
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="battery_data_${deviceId}_${days}days.csv"`);
+    res.send(csv);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Export as JSON
+app.get('/api/mongo/export/json/:deviceId', async (req, res) => {
+  if (!mongoCol) return res.status(503).json({ error: 'MongoDB not connected' });
+  try {
+    const deviceId = req.params.deviceId;
+    const days = parseInt(req.query.days || '30', 10);
+    const cutoffTime = Date.now() - (days * 24 * 60 * 60 * 1000);
+    
+    const docs = await mongoCol
+      .find({ device_id: deviceId, ts: { $gte: cutoffTime } })
+      .sort({ ts: 1 })
+      .toArray();
+    
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="battery_data_${deviceId}_${days}days.json"`);
+    res.json({
+      device_id: deviceId,
+      days,
+      total_records: docs.length,
+      exported_at: new Date().toISOString(),
+      data: docs.map(d => ({
+        timestamp: d.ts,
+        date: new Date(d.ts).toISOString(),
+        voltage: d.payload?.bus_V || d.payload?.voltage,
+        current: d.payload?.current_A || d.payload?.current,
+        power: d.payload?.power_W || d.payload?.power,
+        soc: d.payload?.soc_percent,
+        soh: d.payload?.soh_percent,
+        uptime_ms: d.payload?.uptime_ms
+      }))
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Add WebSocket bridge so browsers can receive MQTT messages via ws://<host>:<port>/ws
 const http = require('http');
 const WebSocket = require('ws');

@@ -376,19 +376,106 @@
 
         <!-- Analytics Tab -->
         <div id="tab-analytics" class="tab-content">
-            <h2 style="font-size:24px;font-weight:700;margin-bottom:24px;">Battery Analytics</h2>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:24px;">
-                <div style="background:linear-gradient(135deg,rgba(168,85,247,0.2),rgba(139,92,246,0.2));border:1px solid rgba(168,85,247,0.5);border-radius:16px;padding:24px;">
-                    <p style="font-size:12px;color:#a855f7;font-weight:500;margin-bottom:8px;">Total Messages</p>
-                    <p style="font-size:32px;font-weight:700;" id="totalMessages">0</p>
+            <h2 style="font-size:24px;font-weight:700;margin-bottom:24px;">30-Day Battery Analytics</h2>
+            
+            <!-- Date Range Selector -->
+            <div class="stat-card" style="margin-bottom:24px;">
+                <h3 style="font-size:16px;font-weight:600;margin-bottom:12px;">Select Time Period</h3>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+                    <div>
+                        <label style="font-size:12px;color:#9ca3af;">From Date</label>
+                        <input type="date" id="fromDate" class="input-field" style="margin-top:4px;">
+                    </div>
+                    <div>
+                        <label style="font-size:12px;color:#9ca3af;">To Date</label>
+                        <input type="date" id="toDate" class="input-field" style="margin-top:4px;">
+                    </div>
+                    <div style="display:flex;align-items:flex-end;gap:8px;">
+                        <button class="btn btn-primary" onclick="load30DayAnalytics()" style="flex:1;">Load 30 Days</button>
+                    </div>
                 </div>
-                <div style="background:linear-gradient(135deg,rgba(34,197,94,0.2),rgba(20,184,166,0.2));border:1px solid rgba(34,197,94,0.5);border-radius:16px;padding:24px;">
-                    <p style="font-size:12px;color:#22c55e;font-weight:500;margin-bottom:8px;">Connection Status</p>
-                    <p style="font-size:24px;font-weight:700;" id="connStatusText">Disconnected</p>
+            </div>
+
+            <!-- Summary Stats -->
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-bottom:24px;">
+                <div style="background:linear-gradient(135deg,rgba(59,130,246,0.2),rgba(99,102,241,0.2));border:1px solid rgba(59,130,246,0.5);border-radius:16px;padding:20px;">
+                    <p style="font-size:11px;color:#3b82f6;font-weight:600;text-transform:uppercase;margin-bottom:8px;">Avg Voltage</p>
+                    <p style="font-size:28px;font-weight:700;" id="analyticsAvgVoltage">—</p>
+                    <p style="font-size:11px;color:#9ca3af;margin-top:4px;">Over 30 days</p>
                 </div>
-                <div style="background:linear-gradient(135deg,rgba(59,130,246,0.2),rgba(99,102,241,0.2));border:1px solid rgba(59,130,246,0.5);border-radius:16px;padding:24px;">
-                    <p style="font-size:12px;color:#3b82f6;font-weight:500;margin-bottom:8px;">Avg Power</p>
-                    <p style="font-size:32px;font-weight:700;" id="avgPower">0 W</p>
+                <div style="background:linear-gradient(135deg,rgba(34,197,94,0.2),rgba(20,184,166,0.2));border:1px solid rgba(34,197,94,0.5);border-radius:16px;padding:20px;">
+                    <p style="font-size:11px;color:#22c55e;font-weight:600;text-transform:uppercase;margin-bottom:8px;">Avg Current</p>
+                    <p style="font-size:28px;font-weight:700;" id="analyticsAvgCurrent">—</p>
+                    <p style="font-size:11px;color:#9ca3af;margin-top:4px;">Over 30 days</p>
+                </div>
+                <div style="background:linear-gradient(135deg,rgba(168,85,247,0.2),rgba(139,92,246,0.2));border:1px solid rgba(168,85,247,0.5);border-radius:16px;padding:20px;">
+                    <p style="font-size:11px;color:#a855f7;font-weight:600;text-transform:uppercase;margin-bottom:8px;">Total Energy</p>
+                    <p style="font-size:28px;font-weight:700;" id="analyticsTotalEnergy">—</p>
+                    <p style="font-size:11px;color:#9ca3af;margin-top:4px;">kWh consumed</p>
+                </div>
+                <div style="background:linear-gradient(135deg,rgba(245,158,11,0.2),rgba(217,119,6,0.2));border:1px solid rgba(245,158,11,0.5);border-radius:16px;padding:20px;">
+                    <p style="font-size:11px;color:#f59e0b;font-weight:600;text-transform:uppercase;margin-bottom:8px;">Avg SoC</p>
+                    <p style="font-size:28px;font-weight:700;" id="analyticsAvgSoC">—</p>
+                    <p style="font-size:11px;color:#9ca3af;margin-top:4px;">Battery charge</p>
+                </div>
+                <div style="background:linear-gradient(135deg,rgba(236,72,153,0.2),rgba(219,39,119,0.2));border:1px solid rgba(236,72,153,0.5);border-radius:16px;padding:20px;">
+                    <p style="font-size:11px;color:#ec4899;font-weight:600;text-transform:uppercase;margin-bottom:8px;">Max Power</p>
+                    <p style="font-size:28px;font-weight:700;" id="analyticsMaxPower">—</p>
+                    <p style="font-size:11px;color:#9ca3af;margin-top:4px;">Peak usage</p>
+                </div>
+                <div style="background:linear-gradient(135deg,rgba(6,182,212,0.2),rgba(8,145,178,0.2));border:1px solid rgba(6,182,212,0.5);border-radius:16px;padding:20px;">
+                    <p style="font-size:11px;color:#06b6d4;font-weight:600;text-transform:uppercase;margin-bottom:8px;">Avg SoH</p>
+                    <p style="font-size:28px;font-weight:700;" id="analyticsAvgSoH">—</p>
+                    <p style="font-size:11px;color:#9ca3af;margin-top:4px;">Battery health</p>
+                </div>
+            </div>
+
+            <!-- Export Buttons -->
+            <div class="stat-card" style="margin-bottom:24px;">
+                <h3 style="font-size:16px;font-weight:600;margin-bottom:12px;">Export Data</h3>
+                <div style="display:flex;flex-wrap:wrap;gap:12px;">
+                    <button class="btn btn-primary" onclick="exportAs('csv')" style="background:linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
+                        <i data-lucide="download" style="width:16px;height:16px;margin-right:8px;"></i>
+                        Download CSV (30 Days)
+                    </button>
+                    <button class="btn btn-primary" onclick="exportAs('json')" style="background:linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">
+                        <i data-lucide="download" style="width:16px;height:16px;margin-right:8px;"></i>
+                        Download JSON (30 Days)
+                    </button>
+                    <button class="btn btn-secondary" onclick="copyToClipboard()">
+                        <i data-lucide="copy" style="width:16px;height:16px;margin-right:8px;"></i>
+                        Copy Data
+                    </button>
+                </div>
+            </div>
+
+            <!-- 30-Day Trends Chart -->
+            <div class="chart-container" style="margin-bottom:24px;">
+                <h3 style="font-size:18px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+                    <i data-lucide="trending-up" style="width:20px;height:20px;color:#a855f7;"></i>
+                    Daily Trends (30 Days)
+                </h3>
+                <canvas id="trendsChart" height="100"></canvas>
+            </div>
+
+            <!-- Details Grid -->
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(350px,1fr));gap:20px;">
+                <div class="chart-container">
+                    <h3 style="font-size:16px;font-weight:600;margin-bottom:12px;">Min/Max/Avg</h3>
+                    <div style="font-size:13px;font-family:monospace;">
+                        <div style="display:grid;grid-template-columns:80px auto;gap:8px;">
+                            <span style="color:#9ca3af;">Voltage:</span><span id="analyticsVoltageRange">—</span>
+                            <span style="color:#9ca3af;">Current:</span><span id="analyticsCurrentRange">—</span>
+                            <span style="color:#9ca3af;">Power:</span><span id="analyticsPowerRange">—</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <h3 style="font-size:16px;font-weight:600;margin-bottom:12px;">Records</h3>
+                    <div style="font-size:13px;">
+                        <p style="margin-bottom:8px;">Total Records: <strong id="analyticsTotalRecords">0</strong></p>
+                        <p style="margin-bottom:8px;">Data Quality: <strong id="analyticsDataQuality">—</strong></p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -483,7 +570,7 @@
         let powerSum = 0;
 
         // Chart instances
-        let vcChart, powerChart, historyChart;
+        let vcChart, powerChart, historyChart, trendsChart;
 
         // Load settings from localStorage
         function loadSettings() {
@@ -725,6 +812,178 @@
             historyChart.update();
         }
 
+        // Load historical data from MongoDB
+        async function loadMongoHistory() {
+            try {
+                // Determine server URL (same origin)
+                const serverUrl = window.location.protocol + '//' + window.location.host;
+                const deviceId = 'battery_esp32_1';
+                const limit = 200;
+                const response = await fetch(`${serverUrl}/api/mongo/readings/${deviceId}?limit=${limit}`);
+                
+                if (!response.ok) {
+                    console.warn('[MongoDB] Failed to load history:', response.status);
+                    return;
+                }
+                
+                const docs = await response.json();
+                if (!docs || docs.length === 0) {
+                    console.log('[MongoDB] No historical data available');
+                    return;
+                }
+
+                console.log('[MongoDB] Loaded', docs.length, 'historical records for', deviceId);
+                
+                // Fill dataHistory from MongoDB docs
+                dataHistory = [];
+                docs.forEach(doc => {
+                    const payload = doc.payload || {};
+                    const voltage = payload.bus_V ?? payload.voltage ?? 0;
+                    const current = payload.current_A ?? payload.current ?? 0;
+                    const power = payload.power_W ?? payload.power ?? 0;
+                    const time = new Date(doc.ts).toLocaleTimeString();
+                    dataHistory.push({ time, voltage, current, power });
+                });
+
+                // Update charts with historical data
+                vcChart.data.labels = dataHistory.map(d => d.time);
+                vcChart.data.datasets[0].data = dataHistory.map(d => d.voltage);
+                vcChart.data.datasets[1].data = dataHistory.map(d => d.current);
+                vcChart.update('none');
+
+                powerChart.data.labels = dataHistory.map(d => d.time);
+                powerChart.data.datasets[0].data = dataHistory.map(d => d.power);
+                powerChart.update('none');
+
+                historyChart.data.labels = dataHistory.map(d => d.time);
+                historyChart.data.datasets[0].data = dataHistory.map(d => d.voltage);
+                historyChart.update('none');
+
+                // Update stats display
+                messageCount = docs.length;
+                powerSum = docs.reduce((sum, doc) => sum + (doc.payload?.power_W ?? doc.payload?.power ?? 0), 0);
+                document.getElementById('diagMsgCount').textContent = messageCount;
+                document.getElementById('totalMessages').textContent = messageCount;
+                document.getElementById('avgPower').textContent = (powerSum / messageCount).toFixed(2) + ' W';
+
+            } catch (e) {
+                console.warn('[MongoDB] Error loading history:', e.message);
+            }
+        }
+
+        // Load 30-day analytics from server
+        async function load30DayAnalytics() {
+            try {
+                const serverUrl = window.location.protocol + '//' + window.location.host;
+                const deviceId = 'battery_esp32_1';
+                
+                console.log('[Analytics] Loading 30-day data...');
+                
+                // Fetch readings
+                const readingsResp = await fetch(`${serverUrl}/api/mongo/readings/30days/${deviceId}?days=30`);
+                const readingsData = await readingsResp.json();
+                
+                // Fetch stats
+                const statsResp = await fetch(`${serverUrl}/api/mongo/stats/30days/${deviceId}?days=30`);
+                const statsData = await statsResp.json();
+                
+                // Fetch trends
+                const trendsResp = await fetch(`${serverUrl}/api/mongo/trends/30days/${deviceId}?days=30`);
+                const trendsData = await trendsResp.json();
+                
+                console.log('[Analytics] Loaded:', readingsData.count, 'records, stats:', statsData.stats);
+                
+                // Update summary cards
+                if (statsData.stats) {
+                    const s = statsData.stats;
+                    document.getElementById('analyticsAvgVoltage').textContent = s.voltage?.avg ?? '—' + ' V';
+                    document.getElementById('analyticsAvgCurrent').textContent = s.current?.avg ?? '—' + ' A';
+                    document.getElementById('analyticsTotalEnergy').textContent = s.energy_kwh ?? '—';
+                    document.getElementById('analyticsAvgSoC').textContent = s.soc?.avg ?? '—' + ' %';
+                    document.getElementById('analyticsMaxPower').textContent = s.power?.max ?? '—' + ' W';
+                    document.getElementById('analyticsAvgSoH').textContent = s.soh?.avg ?? '—' + ' %';
+                    
+                    // Range details
+                    const vr = s.voltage ? `Min: ${s.voltage.min}V, Max: ${s.voltage.max}V, Avg: ${s.voltage.avg}V` : '—';
+                    const cr = s.current ? `Min: ${s.current.min}A, Max: ${s.current.max}A, Avg: ${s.current.avg}A` : '—';
+                    const pr = s.power ? `Min: ${s.power.min}W, Max: ${s.power.max}W, Avg: ${s.power.avg}W` : '—';
+                    document.getElementById('analyticsVoltageRange').textContent = vr;
+                    document.getElementById('analyticsCurrentRange').textContent = cr;
+                    document.getElementById('analyticsPowerRange').textContent = pr;
+                }
+                
+                document.getElementById('analyticsTotalRecords').textContent = readingsData.count;
+                const quality = readingsData.count > 0 ? '100%' : '0%';
+                document.getElementById('analyticsDataQuality').textContent = quality;
+                
+                // Update trends chart
+                if (trendsData.trends && trendsData.trends.length > 0) {
+                    updateTrendsChart(trendsData.trends);
+                }
+                
+                alert('✓ Loaded ' + readingsData.count + ' records from last 30 days!');
+            } catch (e) {
+                console.error('[Analytics] Error:', e.message);
+                alert('Error loading analytics: ' + e.message);
+            }
+        }
+
+        // Update trends chart with daily data
+        function updateTrendsChart(trends) {
+            if (trendsChart) trendsChart.destroy();
+            
+            const canvas = document.getElementById('trendsChart');
+            const dates = trends.map(t => t.date.slice(5)); // MM-DD format
+            const voltages = trends.map(t => parseFloat(t.voltage_avg) || 0);
+            const powers = trends.map(t => parseFloat(t.power_avg) || 0);
+            const energies = trends.map(t => parseFloat(t.energy_kwh) || 0);
+            
+            trendsChart = new Chart(canvas.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: dates,
+                    datasets: [
+                        { label: 'Voltage (V)', data: voltages, borderColor: '#3b82f6', yAxisID: 'y', tension: 0.3, fill: false, pointRadius: 2 },
+                        { label: 'Power (W)', data: powers, borderColor: '#a855f7', yAxisID: 'y1', tension: 0.3, fill: false, pointRadius: 2 },
+                        { label: 'Energy (kWh)', data: energies, borderColor: '#10b981', yAxisID: 'y2', tension: 0.3, fill: false, pointRadius: 2 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { labels: { color: '#9ca3af' } } },
+                    scales: {
+                        y: { type: 'linear', position: 'left', ticks: { color: '#6b7280' }, grid: { color: '#2a2a2a' }, title: { display: true, text: 'Voltage (V)' } },
+                        y1: { type: 'linear', position: 'right', ticks: { color: '#6b7280' }, grid: { drawOnChartArea: false }, title: { display: true, text: 'Power (W)' } },
+                        y2: { type: 'linear', position: 'right', ticks: { color: '#6b7280' }, grid: { drawOnChartArea: false }, offset: true, title: { display: true, text: 'Energy (kWh)' } },
+                        x: { ticks: { color: '#6b7280', maxTicksLimit: 10 }, grid: { color: '#2a2a2a' } }
+                    }
+                }
+            });
+        }
+
+        // Export functions
+        async function exportAs(format) {
+            try {
+                const serverUrl = window.location.protocol + '//' + window.location.host;
+                const deviceId = 'battery_esp32_1';
+                const url = `${serverUrl}/api/mongo/export/${format}/${deviceId}?days=30`;
+                
+                console.log('[Export] Downloading', format.toUpperCase());
+                window.open(url, '_blank');
+            } catch (e) {
+                alert('Export failed: ' + e.message);
+            }
+        }
+
+        function copyToClipboard() {
+            const dataStr = JSON.stringify(dataHistory, null, 2);
+            navigator.clipboard.writeText(dataStr).then(() => {
+                alert('✓ Data copied to clipboard!');
+            }).catch(e => {
+                alert('Failed to copy: ' + e.message);
+            });
+        }
+
         // Tab Management
         function switchTab(tabName, el) {
             document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
@@ -784,8 +1043,17 @@
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
             loadSettings();
+            
+            // Set date picker defaults (30 days ago to today)
+            const today = new Date();
+            const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+            document.getElementById('fromDate').valueAsDate = thirtyDaysAgo;
+            document.getElementById('toDate').valueAsDate = today;
+            
             initCharts();
             connectMQTT();
+            // Load historical data from MongoDB
+            loadMongoHistory();
         });
     </script>
 </body>

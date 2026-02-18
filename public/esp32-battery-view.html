@@ -58,13 +58,20 @@
       <div style="font-size:13px;color:#9ca3af;margin-bottom:6px">Raw payload</div>
       <pre id="raw">-</pre>
     </div>
+
+    <div style="margin-top:20px">
+      <button id="loadHistoryBtn" onclick="loadHistoricalData()" style="padding:8px 16px;background:#3b82f6;color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">Load Historical Data from MongoDB</button>
+      <div id="historyStatus" style="font-size:12px;color:#9ca3af;margin-top:8px;"></div>
+      <div id="historyChart" style="margin-top:12px;"></div>
+    </div>
   </div>
 
   <div class="center">
-    <p style="color:#9ca3af;font-size:13px">This page subscribes to the <code>battery/data</code> topic (default) and displays latest values from the ESP32.</p>
+    <p style="color:#9ca3af;font-size:13px">This page subscribes to the <code>battery/data</code> topic (default) and displays latest values from the ESP32. Click the button above to load historical data from MongoDB.</p>
   </div>
 
   <script src="https://unpkg.com/mqtt@5.3.4/dist/mqtt.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
   <script>
     // Broker defaults (match project HiveMQ config)
     const BROKER = 'wss://0d34f5789e1e4a669367abfe5bd45b15.s1.eu.hivemq.cloud:8884/mqtt';
@@ -95,7 +102,75 @@
       else if(obj.uptime !== undefined) document.getElementById('uptime').textContent = Math.floor(obj.uptime/1000);
     }
 
-    // Connect
+    // Load historical data from MongoDB
+    let histChart = null;
+    async function loadHistoricalData() {
+      const statusEl = document.getElementById('historyStatus');
+      const loadBtn = document.getElementById('loadHistoryBtn');
+      loadBtn.disabled = true;
+      loadBtn.textContent = 'Loading...';
+      statusEl.textContent = 'Fetching data from server...';
+      
+      try {
+        const serverUrl = window.location.protocol + '//' + window.location.host;
+        const deviceId = 'battery_esp32_1';
+        const response = await fetch(`${serverUrl}/api/mongo/readings/${deviceId}?limit=500`);
+        
+        if (!response.ok) {
+          statusEl.textContent = 'Error: Server returned ' + response.status;
+          return;
+        }
+        
+        const docs = await response.json();
+        if (!docs || docs.length === 0) {
+          statusEl.textContent = 'No historical data available in MongoDB';
+          return;
+        }
+
+        statusEl.textContent = `Loaded ${docs.length} records from MongoDB`;
+        
+        // Prepare chart data
+        const labels = docs.map(d => new Date(d.ts).toLocaleTimeString());
+        const voltages = docs.map(d => d.payload?.bus_V ?? d.payload?.voltage ?? 0);
+        const currents = docs.map(d => d.payload?.current_A ?? d.payload?.current ?? 0);
+        const powers = docs.map(d => d.payload?.power_W ?? d.payload?.power ?? 0);
+
+        // Create or update chart
+        const chartContainer = document.getElementById('historyChart');
+        if (histChart) histChart.destroy();
+        
+        const canvas = document.createElement('canvas');
+        chartContainer.innerHTML = '';
+        chartContainer.appendChild(canvas);
+        
+        histChart = new Chart(canvas, {
+          type: 'line',
+          data: {
+            labels: labels.slice(-100), // Show last 100 points
+            datasets: [
+              { label: 'Voltage (V)', data: voltages.slice(-100), borderColor: '#3b82f6', tension: 0.2, fill: false, pointRadius: 1 },
+              { label: 'Current (A)', data: currents.slice(-100), borderColor: '#22c55e', tension: 0.2, fill: false, pointRadius: 1 },
+              { label: 'Power (W)', data: powers.slice(-100), borderColor: '#a855f7', tension: 0.2, fill: false, pointRadius: 1 }
+            ]
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { labels: { color: '#9ca3af' } } },
+            scales: {
+              x: { ticks: { color: '#6b7280', maxTicksLimit: 10 }, grid: { color: '#222226' } },
+              y: { ticks: { color: '#6b7280' }, grid: { color: '#222226' } }
+            }
+          }
+        });
+      } catch (e) {
+        statusEl.textContent = 'Error: ' + e.message;
+      } finally {
+        loadBtn.disabled = false;
+        loadBtn.textContent = 'Load Historical Data from MongoDB';
+      }
+    }
+
+    // Connect to MQTT for live data
     const clientId = 'esp-view-' + Math.random().toString(16).slice(2,8);
     const client = mqtt.connect(BROKER, { clientId, username: USER, password: PASS, keepalive: 60, clean: true });
 

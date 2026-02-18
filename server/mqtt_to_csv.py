@@ -42,8 +42,8 @@ DEFAULT_TOPIC = os.environ.get('MQTT_TOPIC_FILTER', 'energy/+/+/telemetry')
 
 FIELDNAMES = [
     'ts', 'ts_iso', 'topic', 'device_type', 'device_id',
-    'voltage', 'current_signed', 'current', 'power_signed', 'power',
-    'direction', 'ip', 'raw_payload'
+    'voltage', 'shunt_mV', 'current', 'power',
+    'soc_percent', 'soh_percent', 'uptime_ms', 'raw_payload'
 ]
 
 stop_requested = False
@@ -126,27 +126,33 @@ class MQTTToCSV:
             ts = int(time.time() * 1000)
             ts_iso = time.strftime('%Y-%m-%dT%H:%M:%S', time.localtime(ts / 1000.0))
 
-            # Extract device_type and device_id from topic if it matches energy/{type}/{device}/telemetry
+            # Extract device_type and device_id from topic
             parts = msg.topic.split('/')
             device_type = ''
             device_id = ''
             if len(parts) >= 4 and parts[0] == 'energy':
                 device_type = parts[1]
                 device_id = parts[2]
+            elif len(parts) >= 1 and parts[0] == 'battery':
+                # ESP32 BMS publishes to battery/data
+                device_type = 'battery'
+                device_id = 'esp32_bms'
 
+            p = payload if isinstance(payload, dict) else {}
             row = {
                 'ts': ts,
                 'ts_iso': ts_iso,
                 'topic': msg.topic,
                 'device_type': device_type,
                 'device_id': device_id,
-                'voltage': payload.get('voltage') if isinstance(payload, dict) else '',
-                'current_signed': payload.get('current_signed') if isinstance(payload, dict) else '',
-                'current': payload.get('current') if isinstance(payload, dict) else '',
-                'power_signed': payload.get('power_signed') if isinstance(payload, dict) else '',
-                'power': payload.get('power') if isinstance(payload, dict) else '',
-                'direction': payload.get('direction') if isinstance(payload, dict) else '',
-                'ip': payload.get('ip') if isinstance(payload, dict) else '',
+                # ESP32 BMS fields: bus_V / voltage, shunt_mV, current_A / current, power_W / power
+                'voltage': p.get('bus_V') or p.get('voltage', ''),
+                'shunt_mV': p.get('shunt_mV', ''),
+                'current': p.get('current_A') or p.get('current', ''),
+                'power': p.get('power_W') or p.get('power', ''),
+                'soc_percent': p.get('soc_percent', ''),
+                'soh_percent': p.get('soh_percent', ''),
+                'uptime_ms': p.get('uptime_ms', ''),
                 'raw_payload': payload_raw
             }
 
