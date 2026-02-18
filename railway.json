@@ -1,5 +1,0 @@
-{
-  "builder": "nixpacks",
-  "buildCommand": "cd server && npm install",
-  "startCommand": "cd server && node index.js"
-}
