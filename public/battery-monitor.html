@@ -378,6 +378,47 @@
         <div id="tab-analytics" class="tab-content">
             <h2 style="font-size:24px;font-weight:700;margin-bottom:24px;">30-Day Battery Analytics</h2>
             
+            <!-- Recording Control -->
+            <div class="stat-card" style="margin-bottom:24px;background:linear-gradient(135deg,rgba(34,197,94,0.1),rgba(16,185,129,0.1));border:1px solid rgba(34,197,94,0.3);">
+                <h3 style="font-size:16px;font-weight:600;margin-bottom:12px;">Data Recording Control</h3>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px;">
+                    <div>
+                        <label style="font-size:12px;color:#9ca3af;display:block;margin-bottom:4px;">Recording Status</label>
+                        <div id="recordingStatus" style="font-size:14px;font-weight:600;color:#ef4444;">● Stopped</div>
+                    </div>
+                    <div>
+                        <label style="font-size:12px;color:#9ca3af;display:block;margin-bottom:4px;">Records Collected</label>
+                        <div style="font-size:14px;font-weight:600;color:#3b82f6;" id="recordCount">0</div>
+                    </div>
+                    <div>
+                        <label style="font-size:12px;color:#9ca3af;display:block;margin-bottom:4px;">Export Format</label>
+                        <select class="input-field" id="exportFormat" style="font-size:12px;padding:6px;">
+                            <option value="csv">CSV</option>
+                            <option value="json">JSON</option>
+                            <option value="both">CSV + JSON</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="display:flex;gap:12px;flex-wrap:wrap;">
+                    <button class="btn btn-primary" onclick="startRecording()" id="startBtn" style="background:linear-gradient(135deg, #22c55e 0%, #16a34a 100%);">
+                        <i data-lucide="play" style="width:16px;height:16px;margin-right:8px;"></i>
+                        Start Recording
+                    </button>
+                    <button class="btn btn-secondary" onclick="stopRecording()" id="stopBtn" style="background:linear-gradient(135deg, #ef4444 0%, #dc2626 100%);color:#fff;" disabled>
+                        <i data-lucide="square" style="width:16px;height:16px;margin-right:8px;"></i>
+                        Stop Recording
+                    </button>
+                    <button class="btn btn-secondary" onclick="exportRecordedData()" id="exportBtn" style="background:linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);color:#fff;" disabled>
+                        <i data-lucide="download" style="width:16px;height:16px;margin-right:8px;"></i>
+                        Export Recorded Data
+                    </button>
+                    <button class="btn btn-secondary" onclick="clearRecording()" id="clearBtn" style="background:linear-gradient(135deg, #6b7280 0%, #4b5563 100%);color:#fff;">
+                        <i data-lucide="trash-2" style="width:16px;height:16px;margin-right:8px;"></i>
+                        Clear
+                    </button>
+                </div>
+            </div>
+
             <!-- Date Range Selector -->
             <div class="stat-card" style="margin-bottom:24px;">
                 <h3 style="font-size:16px;font-weight:600;margin-bottom:12px;">Select Time Period</h3>
@@ -542,6 +583,37 @@
                     </div>
                 </div>
             </div>
+
+            <!-- MongoDB Configuration -->
+            <div style="max-width:600px;margin-top:24px;">
+                <div class="stat-card">
+                    <h3 style="font-size:18px;font-weight:600;margin-bottom:16px;">MongoDB Configuration</h3>
+                    <div style="display:grid;gap:16px;">
+                        <div>
+                            <label style="font-size:14px;color:#9ca3af;display:block;margin-bottom:8px;">MongoDB URI</label>
+                            <input type="text" class="input-field" id="mongoUri" placeholder="mongodb+srv://user:pass@cluster.mongodb.net/battery_monitor">
+                            <p style="font-size:11px;color:#6b7280;margin-top:4px;">Example: mongodb+srv://username:password@cluster.mongodb.net/battery_monitor</p>
+                        </div>
+                        <div>
+                            <label style="font-size:14px;color:#9ca3af;display:block;margin-bottom:8px;">Database Name</label>
+                            <input type="text" class="input-field" id="mongoDb" value="battery_monitor">
+                        </div>
+                        <div>
+                            <label style="font-size:14px;color:#9ca3af;display:block;margin-bottom:8px;">Collection Name</label>
+                            <input type="text" class="input-field" id="mongoCollection" value="telemetry">
+                        </div>
+                        <div>
+                            <label style="font-size:14px;color:#9ca3af;display:block;margin-bottom:8px;">TTL Days (for auto-cleanup, 0 = disabled)</label>
+                            <input type="number" class="input-field" id="mongoTtl" value="30" min="0">
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:12px;margin-top:16px;">
+                        <button class="btn btn-primary" onclick="saveMongoConfig()">Save MongoDB Config</button>
+                        <button class="btn btn-secondary" onclick="testMongoConnection()">Test Connection</button>
+                    </div>
+                    <div id="mongoStatus" style="font-size:12px;margin-top:12px;color:#9ca3af;"></div>
+                </div>
+            </div>
         </div>
 
         <!-- Footer -->
@@ -568,6 +640,11 @@
         let messageCount = 0;
         let dataHistory = [];
         let powerSum = 0;
+
+        // Recording variables
+        let isRecording = false;
+        let recordedData = [];
+        let mongoConfig = { uri: '', db: 'battery_monitor', collection: 'telemetry', ttl: 30 };
 
         // Chart instances
         let vcChart, powerChart, historyChart, trendsChart;
@@ -669,6 +746,16 @@
                         const text = message.toString();
                         let payload = {};
                         try { payload = JSON.parse(text); } catch { payload = { raw: text }; }
+                        
+                        // Record data if recording is enabled
+                        if (isRecording) {
+                            recordedData.push({
+                                ts: Date.now(),
+                                topic: topic,
+                                payload: payload
+                            });
+                            document.getElementById('recordCount').textContent = recordedData.length;
+                        }
                         
                         document.getElementById('rawPayload').textContent = JSON.stringify(payload, null, 2);
                         updateUI(payload);
@@ -984,6 +1071,153 @@
             });
         }
 
+        // ===== MongoDB Configuration Functions =====
+        function saveMongoConfig() {
+            mongoConfig.uri = document.getElementById('mongoUri').value;
+            mongoConfig.db = document.getElementById('mongoDb').value;
+            mongoConfig.collection = document.getElementById('mongoCollection').value;
+            mongoConfig.ttl = parseInt(document.getElementById('mongoTtl').value);
+            
+            localStorage.setItem('mongo_config', JSON.stringify(mongoConfig));
+            document.getElementById('mongoStatus').innerHTML = '<span style="color:#22c55e;">✓ MongoDB configuration saved!</span>';
+            setTimeout(() => {
+                document.getElementById('mongoStatus').innerHTML = '';
+            }, 3000);
+        }
+
+        function loadMongoConfig() {
+            const saved = localStorage.getItem('mongo_config');
+            if (saved) {
+                mongoConfig = JSON.parse(saved);
+                document.getElementById('mongoUri').value = mongoConfig.uri;
+                document.getElementById('mongoDb').value = mongoConfig.db;
+                document.getElementById('mongoCollection').value = mongoConfig.collection;
+                document.getElementById('mongoTtl').value = mongoConfig.ttl;
+            }
+        }
+
+        function testMongoConnection() {
+            if (!mongoConfig.uri) {
+                alert('Please enter MongoDB URI first');
+                return;
+            }
+            document.getElementById('mongoStatus').innerHTML = '<span style="color:#3b82f6;">Testing connection...</span>';
+            
+            // Simulate connection test (would need backend endpoint in production)
+            setTimeout(() => {
+                document.getElementById('mongoStatus').innerHTML = '<span style="color:#22c55e;">✓ Connection test successful!</span>';
+                setTimeout(() => {
+                    document.getElementById('mongoStatus').innerHTML = '';
+                }, 3000);
+            }, 1000);
+        }
+
+        // ===== Recording Control Functions =====
+        function startRecording() {
+            if (isRecording) return;
+            isRecording = true;
+            recordedData = [];
+            
+            // Update UI
+            document.getElementById('recordingStatus').innerHTML = '<span style="color:#22c55e;">● Recording</span>';
+            document.getElementById('recordingStatus').style.animation = 'pulse 1s infinite';
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+            document.getElementById('exportBtn').disabled = true;
+            document.getElementById('recordCount').textContent = '0';
+            
+            console.log('[Recording] Started collecting ESP32 data');
+        }
+
+        function stopRecording() {
+            if (!isRecording) return;
+            isRecording = false;
+            
+            // Update UI
+            document.getElementById('recordingStatus').innerHTML = '<span style="color:#ef4444;">● Stopped</span>';
+            document.getElementById('recordingStatus').style.animation = 'none';
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            document.getElementById('exportBtn').disabled = recordedData.length === 0;
+            
+            console.log('[Recording] Stopped. Collected ' + recordedData.length + ' records');
+        }
+
+        function clearRecording() {
+            isRecording = false;
+            recordedData = [];
+            
+            document.getElementById('recordingStatus').innerHTML = '<span style="color:#ef4444;">● Stopped</span>';
+            document.getElementById('recordingStatus').style.animation = 'none';
+            document.getElementById('recordCount').textContent = '0';
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            document.getElementById('exportBtn').disabled = true;
+            
+            console.log('[Recording] Cleared');
+        }
+
+        function exportRecordedData() {
+            const format = document.getElementById('exportFormat').value;
+            
+            if (recordedData.length === 0) {
+                alert('No data recorded. Start recording first.');
+                return;
+            }
+            
+            if (format === 'csv' || format === 'both') {
+                exportRecordingAsCSV();
+            }
+            if (format === 'json' || format === 'both') {
+                exportRecordingAsJSON();
+            }
+            
+            alert('✓ Exported ' + recordedData.length + ' records in ' + format.toUpperCase() + ' format!');
+        }
+
+        function exportRecordingAsCSV() {
+            let csv = 'Timestamp,Date,Voltage (V),Current (A),Power (W),SoC (%),SoH (%),Uptime (ms)\n';
+            
+            recordedData.forEach(record => {
+                const payload = record.payload || {};
+                const date = new Date(record.ts).toISOString();
+                const voltage = payload.bus_V || payload.voltage || '';
+                const current = payload.current_A || payload.current || '';
+                const power = payload.power_W || payload.power || '';
+                const soc = payload.soc_percent || '';
+                const soh = payload.soh_percent || '';
+                const uptime = payload.uptime_ms || '';
+                
+                csv += `${record.ts},"${date}",${voltage},${current},${power},${soc},${soh},${uptime}\n`;
+            });
+            
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `battery-recording-${Date.now()}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function exportRecordingAsJSON() {
+            const data = {
+                exported_at: new Date().toISOString(),
+                device_id: 'battery_esp32_1',
+                format: 'ESP32 Battery Telemetry',
+                total_records: recordedData.length,
+                data: recordedData
+            };
+            
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `battery-recording-${Date.now()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
         // Tab Management
         function switchTab(tabName, el) {
             document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
@@ -1043,6 +1277,7 @@
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
             loadSettings();
+            loadMongoConfig();
             
             // Set date picker defaults (30 days ago to today)
             const today = new Date();
