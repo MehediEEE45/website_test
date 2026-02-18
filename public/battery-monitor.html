@@ -521,6 +521,40 @@
                 </div>
             </div>
 
+            <!-- Custom Comparison Chart -->
+            <div id="comparisonContainer" class="stat-card" style="margin-bottom:24px;background:linear-gradient(135deg,rgba(236,72,153,0.1),rgba(168,85,247,0.1));border:1px solid rgba(168,85,247,0.3);">
+                <h3 style="font-size:16px;font-weight:600;margin-bottom:12px;">📊 Compare Any Two Metrics (Time vs Metrics)</h3>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px;">
+                    <div>
+                        <label style="font-size:12px;color:#9ca3af;display:block;margin-bottom:4px;">First Metric (Y-Axis 1)</label>
+                        <select id="metric1" class="input-field" onchange="updateComparisonChart();" style="font-size:12px;padding:6px;">
+                            <option value="voltage">Voltage (V)</option>
+                            <option value="current">Current (A)</option>
+                            <option value="power">Power (W)</option>
+                            <option value="soc">State of Charge (%)</option>
+                            <option value="soh">State of Health (%)</option>
+                            <option value="energy">Energy (kWh)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size:12px;color:#9ca3af;display:block;margin-bottom:4px;">Second Metric (Y-Axis 2)</label>
+                        <select id="metric2" class="input-field" onchange="updateComparisonChart();" style="font-size:12px;padding:6px;">
+                            <option value="voltage">Voltage (V)</option>
+                            <option value="current" selected>Current (A)</option>
+                            <option value="power">Power (W)</option>
+                            <option value="soc">State of Charge (%)</option>
+                            <option value="soh">State of Health (%)</option>
+                            <option value="energy">Energy (kWh)</option>
+                        </select>
+                    </div>
+                    <div style="display:flex;align-items:flex-end;">
+                        <button class="btn btn-primary" onclick="updateComparisonChart();" style="width:100%;">Update Chart</button>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="comparisonChart" height="100"></canvas>
+                </div>
+            </div>
 
             <!-- Trends Chart -->
             <div id="trendsContainer" class="chart-container" style="margin-bottom:24px;">
@@ -679,7 +713,11 @@
         let mongoConfig = { uri: '', db: 'battery_monitor', collection: 'telemetry', ttl: 30 };
 
         // Chart instances
-        let vcChart, powerChart, historyChart, trendsChart;
+        let vcChart, powerChart, historyChart, trendsChart, comparisonChart;
+        
+        // Store data for comparison chart
+        let lastReadingsData = [];
+        let lastTrendsData = [];
 
         // Load settings from localStorage
         function loadSettings() {
@@ -1010,6 +1048,10 @@
                 const trendsResp = await fetch(`${serverUrl}/api/mongo/trends/30days/${deviceId}?days=30`);
                 const trendsData = await trendsResp.json();
                 
+                // Store data for comparison chart
+                lastReadingsData = readingsData.data || [];
+                lastTrendsData = trendsData.trends || [];
+                
                 console.log('[Analytics] Loaded:', readingsData.count, 'records, stats:', statsData.stats);
                 
                 // Update summary cards
@@ -1044,6 +1086,9 @@
                     };
                     updateTrendsChart(trendsData.trends, filter);
                 }
+                
+                // Update comparison chart with default metrics
+                updateComparisonChart();
                 
                 alert('✓ Loaded ' + readingsData.count + ' records from last 30 days!');
             } catch (e) {
@@ -1085,6 +1130,137 @@
                     }
                 }
             });
+        }
+
+        // Update comparison chart with user-selected metrics vs time
+        function updateComparisonChart() {
+            const metric1 = document.getElementById('metric1').value;
+            const metric2 = document.getElementById('metric2').value;
+
+            // Check if we have readings data
+            if (lastReadingsData.length === 0) {
+                console.log('[Comparison] No data available. Load 30 days first.');
+                return;
+            }
+
+            console.log('[Comparison] Updating chart - Metric1:', metric1, 'Metric2:', metric2);
+
+            // Extract data for selected metrics
+            const data1 = [];
+            const data2 = [];
+            const times = [];
+
+            lastReadingsData.forEach(record => {
+                const payload = record.payload || {};
+                const time = new Date(record.ts).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                
+                // Get metric 1 value
+                let val1 = 0;
+                if (metric1 === 'voltage') val1 = payload.bus_V || payload.voltage || 0;
+                else if (metric1 === 'current') val1 = payload.current_A || payload.current || 0;
+                else if (metric1 === 'power') val1 = payload.power_W || payload.power || 0;
+                else if (metric1 === 'soc') val1 = payload.soc_percent || 0;
+                else if (metric1 === 'soh') val1 = payload.soh_percent || 0;
+                else if (metric1 === 'energy') val1 = payload.energy_kwh || 0;
+                
+                // Get metric 2 value
+                let val2 = 0;
+                if (metric2 === 'voltage') val2 = payload.bus_V || payload.voltage || 0;
+                else if (metric2 === 'current') val2 = payload.current_A || payload.current || 0;
+                else if (metric2 === 'power') val2 = payload.power_W || payload.power || 0;
+                else if (metric2 === 'soc') val2 = payload.soc_percent || 0;
+                else if (metric2 === 'soh') val2 = payload.soh_percent || 0;
+                else if (metric2 === 'energy') val2 = payload.energy_kwh || 0;
+
+                data1.push(val1);
+                data2.push(val2);
+                times.push(time);
+            });
+
+            // Get metric labels
+            const metricLabels = {
+                voltage: 'Voltage (V)',
+                current: 'Current (A)',
+                power: 'Power (W)',
+                soc: 'SoC (%)',
+                soh: 'SoH (%)',
+                energy: 'Energy (kWh)'
+            };
+
+            const colors = {
+                voltage: '#3b82f6',
+                current: '#22c55e',
+                power: '#a855f7',
+                soc: '#f59e0b',
+                soh: '#06b6d4',
+                energy: '#ec4899'
+            };
+
+            // Destroy existing chart if it exists
+            if (comparisonChart) comparisonChart.destroy();
+
+            // Create new comparison chart
+            const canvas = document.getElementById('comparisonChart');
+            comparisonChart = new Chart(canvas.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: times,
+                    datasets: [
+                        {
+                            label: metricLabels[metric1],
+                            data: data1,
+                            borderColor: colors[metric1],
+                            backgroundColor: colors[metric1] + '20',
+                            yAxisID: 'y',
+                            tension: 0.4,
+                            fill: false,
+                            pointRadius: 2,
+                            borderWidth: 2
+                        },
+                        {
+                            label: metricLabels[metric2],
+                            data: data2,
+                            borderColor: colors[metric2],
+                            backgroundColor: colors[metric2] + '20',
+                            yAxisID: 'y1',
+                            tension: 0.4,
+                            fill: false,
+                            pointRadius: 2,
+                            borderWidth: 2
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { labels: { color: '#9ca3af', font: { size: 12 } }, position: 'top' },
+                        title: { display: true, text: `${metricLabels[metric1]} vs ${metricLabels[metric2]} Over Time`, color: '#e5e7eb' }
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            position: 'left',
+                            ticks: { color: '#6b7280' },
+                            grid: { color: '#2a2a2a' },
+                            title: { display: true, text: metricLabels[metric1], color: '#9ca3af' }
+                        },
+                        y1: {
+                            type: 'linear',
+                            position: 'right',
+                            ticks: { color: '#6b7280' },
+                            grid: { drawOnChartArea: false },
+                            title: { display: true, text: metricLabels[metric2], color: '#9ca3af' }
+                        },
+                        x: {
+                            ticks: { color: '#6b7280', maxTicksLimit: 12 },
+                            grid: { color: '#2a2a2a' }
+                        }
+                    }
+                }
+            });
+
+            console.log('[Comparison] Chart updated with', times.length, 'data points');
         }
 
         // Export functions
