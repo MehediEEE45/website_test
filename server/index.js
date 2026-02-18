@@ -133,11 +133,11 @@ client.on('message', async (topic, message) => {
 
   if (payload && typeof payload === 'object') {
     doc.device_id = payload.device_id || deviceId;
-    doc.voltage = Number(payload.voltage || payload.bus_V || payload.v || null) || null;
-    doc.current = Number(payload.current || payload.current_A || payload.i || null) || null;
-    doc.power = Number(payload.power || payload.power_W || null) || null;
-    doc.timestamp = payload.timestamp || payload.ts || null;
-    doc.uptime_ms = payload.uptime_ms || null;
+    doc.voltage = Number(payload.voltage ?? payload.bus_V ?? payload.v ?? null) ?? null;
+    doc.current = Number(payload.current ?? payload.current_A ?? payload.i ?? null) ?? null;
+    doc.power = Number(payload.power ?? payload.power_W ?? null) ?? null;
+    doc.timestamp = payload.timestamp ?? payload.ts ?? null;
+    doc.uptime_ms = payload.uptime_ms ?? null;
     doc.payload = payload;
   } else {
     doc.payload = raw;
@@ -251,8 +251,9 @@ app.get('/api/mongo/stats/:deviceId', async (req, res) => {
       return res.json({ device_id: deviceId, count: 0, voltage: null, current: null, power: null, soc: null });
     }
 
+    const altKey = { bus_V: 'voltage', current_A: 'current', power_W: 'power' };
     const getNumbers = (key) => docs.map(d => {
-      const val = d.payload ? (d.payload[key] || d.payload[key.replace('_A', '').replace('_W', '').replace('_V', '')]) : null;
+      const val = d.payload ? (d.payload[key] ?? d.payload[altKey[key]] ?? null) : null;
       return typeof val === 'number' ? val : null;
     }).filter(v => v !== null);
 
@@ -317,8 +318,9 @@ app.get('/api/mongo/stats/30days/:deviceId', async (req, res) => {
       return res.json({ device_id: deviceId, days, count: 0, stats: null });
     }
 
+    const altKey = { bus_V: 'voltage', current_A: 'current', power_W: 'power' };
     const getNumbers = (key) => docs.map(d => {
-      const val = d.payload ? (d.payload[key] || d.payload[key.replace('_A', '').replace('_W', '')]) : null;
+      const val = d.payload ? (d.payload[key] ?? d.payload[altKey[key]] ?? null) : null;
       return typeof val === 'number' ? val : null;
     }).filter(v => v !== null);
 
@@ -429,12 +431,12 @@ app.get('/api/mongo/export/csv/:deviceId', async (req, res) => {
     docs.forEach(doc => {
       const p = doc.payload || {};
       const date = new Date(doc.ts);
-      const voltage = p.bus_V || p.voltage || '';
-      const current = p.current_A || p.current || '';
-      const power = p.power_W || p.power || '';
-      const soc = p.soc_percent || '';
-      const soh = p.soh_percent || '';
-      const uptime = p.uptime_ms || '';
+      const voltage = p.bus_V ?? p.voltage ?? '';
+      const current = p.current_A ?? p.current ?? '';
+      const power = p.power_W ?? p.power ?? '';
+      const soc = p.soc_percent ?? '';
+      const soh = p.soh_percent ?? '';
+      const uptime = p.uptime_ms ?? '';
       csv += `${doc.ts},"${date.toISOString()}",${voltage},${current},${power},${soc},${soh},${uptime}\n`;
     });
 
@@ -469,9 +471,9 @@ app.get('/api/mongo/export/json/:deviceId', async (req, res) => {
       data: docs.map(d => ({
         timestamp: d.ts,
         date: new Date(d.ts).toISOString(),
-        voltage: d.payload?.bus_V || d.payload?.voltage,
-        current: d.payload?.current_A || d.payload?.current,
-        power: d.payload?.power_W || d.payload?.power,
+        voltage: d.payload?.bus_V ?? d.payload?.voltage,
+        current: d.payload?.current_A ?? d.payload?.current,
+        power: d.payload?.power_W ?? d.payload?.power,
         soc: d.payload?.soc_percent,
         soh: d.payload?.soh_percent,
         uptime_ms: d.payload?.uptime_ms

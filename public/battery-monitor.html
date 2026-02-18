@@ -441,7 +441,7 @@
             <div class="stat-card" style="margin-bottom:24px;background:linear-gradient(135deg,rgba(99,102,241,0.1),rgba(139,92,246,0.1));border:1px solid rgba(139,92,246,0.3);">
                 <h3 style="font-size:16px;font-weight:600;margin-bottom:12px;">✓ Select Plots to Display</h3>
                 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
-                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px;border-radius:8px;background:rgba(255,255,255,0.05);hover:background:rgba(255,255,255,0.1);">
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px;border-radius:8px;background:rgba(255,255,255,0.05);">
                         <input type="checkbox" id="plotStatsCards" checked onchange="togglePlots();" style="width:16px;height:16px;cursor:pointer;">
                         <span style="font-size:13px;">Summary Statistics Cards</span>
                     </label>
@@ -1069,12 +1069,12 @@
                 // Update summary cards
                 if (statsData.stats) {
                     const s = statsData.stats;
-                    document.getElementById('analyticsAvgVoltage').textContent = s.voltage?.avg ?? '—' + ' V';
-                    document.getElementById('analyticsAvgCurrent').textContent = s.current?.avg ?? '—' + ' A';
-                    document.getElementById('analyticsTotalEnergy').textContent = s.energy_kwh ?? '—';
-                    document.getElementById('analyticsAvgSoC').textContent = s.soc?.avg ?? '—' + ' %';
-                    document.getElementById('analyticsMaxPower').textContent = s.power?.max ?? '—' + ' W';
-                    document.getElementById('analyticsAvgSoH').textContent = s.soh?.avg ?? '—' + ' %';
+                    document.getElementById('analyticsAvgVoltage').textContent = (s.voltage?.avg ?? '—') + ' V';
+                    document.getElementById('analyticsAvgCurrent').textContent = (s.current?.avg ?? '—') + ' A';
+                    document.getElementById('analyticsTotalEnergy').textContent = (s.energy_kwh ?? '—') + ' kWh';
+                    document.getElementById('analyticsAvgSoC').textContent = (s.soc?.avg ?? '—') + ' %';
+                    document.getElementById('analyticsMaxPower').textContent = (s.power?.max ?? '—') + ' W';
+                    document.getElementById('analyticsAvgSoH').textContent = (s.soh?.avg ?? '—') + ' %';
                     
                     // Range details
                     const vr = s.voltage ? `Min: ${s.voltage.min}V, Max: ${s.voltage.max}V, Avg: ${s.voltage.avg}V` : '—';
@@ -1242,14 +1242,15 @@
                 });
             } else {
                 // Metric-vs-metric mode -> scatter plot (x numeric)
-                const scatterData = [];
+                const scatterData1 = [];
+                const scatterData2 = [];
                 for (let i = 0; i < xVals.length; i++) {
-                    const xv = xVals[i];
-                    const yy = y2[i];
                     const xx = xVals[i];
-                    // only include numeric points
-                    if (xx !== null && yy !== null && !isNaN(xx) && !isNaN(yy)) {
-                        scatterData.push({ x: Number(xx), y: Number(yy) });
+                    const yy1 = y1[i];
+                    const yy2 = y2[i];
+                    if (xx !== null && !isNaN(xx)) {
+                        if (yy1 !== null && !isNaN(yy1)) scatterData1.push({ x: Number(xx), y: Number(yy1) });
+                        if (yy2 !== null && !isNaN(yy2)) scatterData2.push({ x: Number(xx), y: Number(yy2) });
                     }
                 }
 
@@ -1258,8 +1259,15 @@
                     data: {
                         datasets: [
                             {
+                                label: `${metricLabels[metric1]} vs ${metricLabels[xAxis]}`,
+                                data: scatterData1,
+                                backgroundColor: colors[metric1],
+                                borderColor: colors[metric1],
+                                pointRadius: 3
+                            },
+                            {
                                 label: `${metricLabels[metric2]} vs ${metricLabels[xAxis]}`,
-                                data: scatterData,
+                                data: scatterData2,
                                 backgroundColor: colors[metric2],
                                 borderColor: colors[metric2],
                                 pointRadius: 3
