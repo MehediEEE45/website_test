@@ -174,6 +174,9 @@ client.on('message', async (topic, message) => {
 const app = express();
 app.use(bodyParser.json());
 
+// Serve static files from public directory
+app.use(express.static(path.join(__dirname, '../public')));
+
 // Get recent readings for a device
 app.get('/api/readings/:deviceId', (req, res) => {
   const deviceId = req.params.deviceId;
@@ -500,6 +503,11 @@ server.on('upgrade', function upgrade(request, socket, head) {
 // The main handler is defined above and also broadcasts to WS clients
 
 const os = require('os');
+
+// Serve index.html for root and SPA routing
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/index.html'));
+});
 
 // Start the HTTP server (which also serves the WS bridge) and bind to all interfaces
 // Initialize MongoDB and then start server
