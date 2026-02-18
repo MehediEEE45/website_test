@@ -437,8 +437,39 @@
                 </div>
             </div>
 
+            <!-- Graph Selection Panel -->
+            <div class="stat-card" style="margin-bottom:24px;background:linear-gradient(135deg,rgba(99,102,241,0.1),rgba(139,92,246,0.1));border:1px solid rgba(139,92,246,0.3);">
+                <h3 style="font-size:16px;font-weight:600;margin-bottom:12px;">✓ Select Plots to Display</h3>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px;border-radius:8px;background:rgba(255,255,255,0.05);hover:background:rgba(255,255,255,0.1);">
+                        <input type="checkbox" id="plotStatsCards" checked onchange="togglePlots();" style="width:16px;height:16px;cursor:pointer;">
+                        <span style="font-size:13px;">Summary Statistics Cards</span>
+                    </label>
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px;border-radius:8px;background:rgba(255,255,255,0.05);">
+                        <input type="checkbox" id="plotVoltage" checked onchange="togglePlots();" style="width:16px;height:16px;cursor:pointer;">
+                        <span style="font-size:13px;">Daily Voltage Trend</span>
+                    </label>
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px;border-radius:8px;background:rgba(255,255,255,0.05);">
+                        <input type="checkbox" id="plotPower" checked onchange="togglePlots();" style="width:16px;height:16px;cursor:pointer;">
+                        <span style="font-size:13px;">Daily Power Trend</span>
+                    </label>
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px;border-radius:8px;background:rgba(255,255,255,0.05);">
+                        <input type="checkbox" id="plotEnergy" checked onchange="togglePlots();" style="width:16px;height:16px;cursor:pointer;">
+                        <span style="font-size:13px;">Daily Energy Consumption</span>
+                    </label>
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px;border-radius:8px;background:rgba(255,255,255,0.05);">
+                        <input type="checkbox" id="plotExports" checked onchange="togglePlots();" style="width:16px;height:16px;cursor:pointer;">
+                        <span style="font-size:13px;">Export Options</span>
+                    </label>
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px;border-radius:8px;background:rgba(255,255,255,0.05);">
+                        <input type="checkbox" id="plotDetails" checked onchange="togglePlots();" style="width:16px;height:16px;cursor:pointer;">
+                        <span style="font-size:13px;">Min/Max/Avg Details</span>
+                    </label>
+                </div>
+            </div>
+
             <!-- Summary Stats -->
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-bottom:24px;">
+            <div id="statsCardsContainer" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-bottom:24px;">
                 <div style="background:linear-gradient(135deg,rgba(59,130,246,0.2),rgba(99,102,241,0.2));border:1px solid rgba(59,130,246,0.5);border-radius:16px;padding:20px;">
                     <p style="font-size:11px;color:#3b82f6;font-weight:600;text-transform:uppercase;margin-bottom:8px;">Avg Voltage</p>
                     <p style="font-size:28px;font-weight:700;" id="analyticsAvgVoltage">—</p>
@@ -472,7 +503,7 @@
             </div>
 
             <!-- Export Buttons -->
-            <div class="stat-card" style="margin-bottom:24px;">
+            <div id="exportsContainer" class="stat-card" style="margin-bottom:24px;">
                 <h3 style="font-size:16px;font-weight:600;margin-bottom:12px;">Export Data</h3>
                 <div style="display:flex;flex-wrap:wrap;gap:12px;">
                     <button class="btn btn-primary" onclick="exportAs('csv')" style="background:linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
@@ -490,8 +521,9 @@
                 </div>
             </div>
 
-            <!-- 30-Day Trends Chart -->
-            <div class="chart-container" style="margin-bottom:24px;">
+
+            <!-- Trends Chart -->
+            <div id="trendsContainer" class="chart-container" style="margin-bottom:24px;">
                 <h3 style="font-size:18px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;gap:8px;">
                     <i data-lucide="trending-up" style="width:20px;height:20px;color:#a855f7;"></i>
                     Daily Trends (30 Days)
@@ -500,7 +532,7 @@
             </div>
 
             <!-- Details Grid -->
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(350px,1fr));gap:20px;">
+            <div id="detailsContainer" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(350px,1fr));gap:20px;">
                 <div class="chart-container">
                     <h3 style="font-size:16px;font-weight:600;margin-bottom:12px;">Min/Max/Avg</h3>
                     <div style="font-size:13px;font-family:monospace;">
@@ -1003,9 +1035,14 @@
                 const quality = readingsData.count > 0 ? '100%' : '0%';
                 document.getElementById('analyticsDataQuality').textContent = quality;
                 
-                // Update trends chart
+                // Update trends chart with selected datasets
                 if (trendsData.trends && trendsData.trends.length > 0) {
-                    updateTrendsChart(trendsData.trends);
+                    const filter = {
+                        voltage: document.getElementById('plotVoltage').checked,
+                        power: document.getElementById('plotPower').checked,
+                        energy: document.getElementById('plotEnergy').checked
+                    };
+                    updateTrendsChart(trendsData.trends, filter);
                 }
                 
                 alert('✓ Loaded ' + readingsData.count + ' records from last 30 days!');
@@ -1015,8 +1052,8 @@
             }
         }
 
-        // Update trends chart with daily data
-        function updateTrendsChart(trends) {
+        // Update trends chart with daily data - accepts optional dataset filter
+        function updateTrendsChart(trends, filter = { voltage: true, power: true, energy: true }) {
             if (trendsChart) trendsChart.destroy();
             
             const canvas = document.getElementById('trendsChart');
@@ -1025,15 +1062,17 @@
             const powers = trends.map(t => parseFloat(t.power_avg) || 0);
             const energies = trends.map(t => parseFloat(t.energy_kwh) || 0);
             
+            // Build datasets based on filter
+            const datasets = [];
+            if (filter.voltage) datasets.push({ label: 'Voltage (V)', data: voltages, borderColor: '#3b82f6', yAxisID: 'y', tension: 0.3, fill: false, pointRadius: 2 });
+            if (filter.power) datasets.push({ label: 'Power (W)', data: powers, borderColor: '#a855f7', yAxisID: 'y1', tension: 0.3, fill: false, pointRadius: 2 });
+            if (filter.energy) datasets.push({ label: 'Energy (kWh)', data: energies, borderColor: '#10b981', yAxisID: 'y2', tension: 0.3, fill: false, pointRadius: 2 });
+            
             trendsChart = new Chart(canvas.getContext('2d'), {
                 type: 'line',
                 data: {
                     labels: dates,
-                    datasets: [
-                        { label: 'Voltage (V)', data: voltages, borderColor: '#3b82f6', yAxisID: 'y', tension: 0.3, fill: false, pointRadius: 2 },
-                        { label: 'Power (W)', data: powers, borderColor: '#a855f7', yAxisID: 'y1', tension: 0.3, fill: false, pointRadius: 2 },
-                        { label: 'Energy (kWh)', data: energies, borderColor: '#10b981', yAxisID: 'y2', tension: 0.3, fill: false, pointRadius: 2 }
-                    ]
+                    datasets: datasets
                 },
                 options: {
                     responsive: true,
@@ -1155,6 +1194,24 @@
             document.getElementById('exportBtn').disabled = true;
             
             console.log('[Recording] Cleared');
+        }
+
+        // ===== Plot Visibility Toggle Function =====
+        function togglePlots() {
+            const showStats = document.getElementById('plotStatsCards').checked;
+            const showVoltage = document.getElementById('plotVoltage').checked;
+            const showPower = document.getElementById('plotPower').checked;
+            const showEnergy = document.getElementById('plotEnergy').checked;
+            const showExports = document.getElementById('plotExports').checked;
+            const showDetails = document.getElementById('plotDetails').checked;
+
+            // Toggle visibility for each section
+            document.getElementById('statsCardsContainer').style.display = showStats ? 'grid' : 'none';
+            document.getElementById('exportsContainer').style.display = showExports ? 'block' : 'none';
+            document.getElementById('trendsContainer').style.display = (showVoltage || showPower || showEnergy) ? 'block' : 'none';
+            document.getElementById('detailsContainer').style.display = showDetails ? 'grid' : 'none';
+
+            console.log('[Plots] Visibility updated - Stats:', showStats, 'Voltage:', showVoltage, 'Power:', showPower, 'Energy:', showEnergy, 'Exports:', showExports, 'Details:', showDetails);
         }
 
         function exportRecordedData() {
