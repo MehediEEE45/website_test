@@ -252,6 +252,12 @@
                 font-size: 16px;
             }
         }
+        /* Tablet: stack comparison+recording */
+        @media (max-width: 900px) {
+            #tab-analytics > div:nth-child(4) {
+                grid-template-columns: 1fr !important;
+            }
+        }
         /* Mobile: 480px and below */
         @media (max-width: 480px) {
             .header {
@@ -480,204 +486,240 @@
 
         <!-- Analytics Tab -->
         <div id="tab-analytics" class="tab-content">
-            <!-- Tab Header with Quick Actions -->
-            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
-                <div>
-                    <h2 style="font-size:22px;font-weight:700;">📊 Battery Analytics</h2>
-                    <p style="font-size:12px;color:#6b7280;margin-top:2px;">30-day analysis &amp; data recording</p>
-                </div>
-                <div style="display:flex;gap:8px;">
-                    <button class="btn btn-primary" onclick="load30DayAnalytics()" style="font-size:11px;padding:8px 14px;">⟳ Load 30d</button>
-                    <button class="btn btn-secondary" onclick="exportAs('csv')" style="font-size:11px;padding:8px 14px;">⬇ CSV</button>
-                    <button class="btn btn-secondary" onclick="exportAs('json')" style="font-size:11px;padding:8px 14px;">⬇ JSON</button>
-                </div>
-            </div>
-
-            <!-- Date Range + Recording in one row -->
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-bottom:20px;">
-                <!-- Date Range -->
-                <div class="stat-card" style="padding:16px;">
-                    <h3 style="font-size:13px;font-weight:600;margin-bottom:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;">📅 Date Range</h3>
-                    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
-                        <div style="flex:1;min-width:100px;">
-                            <label style="font-size:10px;color:#6b7280;">From</label>
-                            <input type="date" id="fromDate" class="input-field" style="margin-top:2px;font-size:12px;padding:8px;">
-                        </div>
-                        <div style="flex:1;min-width:100px;">
-                            <label style="font-size:10px;color:#6b7280;">To</label>
-                            <input type="date" id="toDate" class="input-field" style="margin-top:2px;font-size:12px;padding:8px;">
+            <!-- Section 1: Control Bar -->
+            <div style="background:linear-gradient(135deg,rgba(99,102,241,0.08),rgba(168,85,247,0.08));border:1px solid rgba(139,92,246,0.25);border-radius:16px;padding:20px;margin-bottom:24px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+                    <div style="display:flex;align-items:center;gap:12px;">
+                        <div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#6366f1,#a855f7);display:flex;align-items:center;justify-content:center;font-size:20px;">📊</div>
+                        <div>
+                            <h2 style="font-size:20px;font-weight:700;margin:0;">Battery Analytics</h2>
+                            <p style="font-size:11px;color:#6b7280;margin:2px 0 0;">MongoDB 30-day analysis &amp; live recording</p>
                         </div>
                     </div>
+                    <button class="btn btn-primary" onclick="load30DayAnalytics()" style="font-size:12px;padding:10px 20px;border-radius:10px;background:linear-gradient(135deg,#6366f1,#8b5cf6);">
+                        <i data-lucide="refresh-cw" style="width:14px;height:14px;margin-right:6px;"></i>Load 30 Days
+                    </button>
                 </div>
-                <!-- Recording -->
-                <div class="stat-card" style="padding:16px;border-color:rgba(34,197,94,0.3);">
-                    <h3 style="font-size:13px;font-weight:600;margin-bottom:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;">📹 Recording</h3>
-                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-                        <div id="recordingStatus" style="font-size:12px;font-weight:600;color:#ef4444;">● Stopped</div>
-                        <div style="font-size:12px;color:#6b7280;">Records: <strong style="color:#3b82f6;" id="recordCount">0</strong></div>
-                        <select class="input-field" id="exportFormat" style="font-size:10px;padding:4px 6px;width:auto;min-width:60px;">
-                            <option value="csv">CSV</option>
-                            <option value="json">JSON</option>
-                            <option value="both">Both</option>
-                        </select>
+                <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+                    <div style="flex:1;min-width:120px;">
+                        <label style="font-size:10px;color:#9ca3af;display:block;margin-bottom:4px;">From</label>
+                        <input type="date" id="fromDate" class="input-field" style="font-size:12px;padding:8px 10px;border-radius:8px;">
                     </div>
-                    <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                        <button class="btn" onclick="startRecording()" id="startBtn" style="background:#22c55e;color:#fff;font-size:11px;padding:6px 12px;">▶</button>
-                        <button class="btn" onclick="stopRecording()" id="stopBtn" style="background:#ef4444;color:#fff;font-size:11px;padding:6px 12px;" disabled>⏹</button>
-                        <button class="btn" onclick="exportRecordedData()" id="exportBtn" style="background:#3b82f6;color:#fff;font-size:11px;padding:6px 12px;" disabled>⬇</button>
-                        <button class="btn btn-secondary" onclick="clearRecording()" id="clearBtn" style="font-size:11px;padding:6px 12px;">🗑</button>
+                    <div style="flex:1;min-width:120px;">
+                        <label style="font-size:10px;color:#9ca3af;display:block;margin-bottom:4px;">To</label>
+                        <input type="date" id="toDate" class="input-field" style="font-size:12px;padding:8px 10px;border-radius:8px;">
                     </div>
-                </div>
-            </div>
-            <!-- Summary Stats -->
-            <div id="statsCardsContainer" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px;">
-                <div style="background:linear-gradient(135deg,rgba(59,130,246,0.15),rgba(99,102,241,0.15));border:1px solid rgba(59,130,246,0.4);border-radius:12px;padding:14px;text-align:center;">
-                    <p style="font-size:10px;color:#3b82f6;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Voltage</p>
-                    <p style="font-size:24px;font-weight:700;margin:4px 0;" id="analyticsAvgVoltage">—</p>
-                    <p style="font-size:9px;color:#6b7280;">avg · 30d</p>
-                </div>
-                <div style="background:linear-gradient(135deg,rgba(34,197,94,0.15),rgba(20,184,166,0.15));border:1px solid rgba(34,197,94,0.4);border-radius:12px;padding:14px;text-align:center;">
-                    <p style="font-size:10px;color:#22c55e;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Current</p>
-                    <p style="font-size:24px;font-weight:700;margin:4px 0;" id="analyticsAvgCurrent">—</p>
-                    <p style="font-size:9px;color:#6b7280;">avg · 30d</p>
-                </div>
-                <div style="background:linear-gradient(135deg,rgba(168,85,247,0.15),rgba(139,92,246,0.15));border:1px solid rgba(168,85,247,0.4);border-radius:12px;padding:14px;text-align:center;">
-                    <p style="font-size:10px;color:#a855f7;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Energy</p>
-                    <p style="font-size:24px;font-weight:700;margin:4px 0;" id="analyticsTotalEnergy">—</p>
-                    <p style="font-size:9px;color:#6b7280;">kWh total</p>
-                </div>
-                <div style="background:linear-gradient(135deg,rgba(245,158,11,0.15),rgba(217,119,6,0.15));border:1px solid rgba(245,158,11,0.4);border-radius:12px;padding:14px;text-align:center;">
-                    <p style="font-size:10px;color:#f59e0b;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">SoC</p>
-                    <p style="font-size:24px;font-weight:700;margin:4px 0;" id="analyticsAvgSoC">—</p>
-                    <p style="font-size:9px;color:#6b7280;">avg charge</p>
-                </div>
-                <div style="background:linear-gradient(135deg,rgba(236,72,153,0.15),rgba(219,39,119,0.15));border:1px solid rgba(236,72,153,0.4);border-radius:12px;padding:14px;text-align:center;">
-                    <p style="font-size:10px;color:#ec4899;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Power</p>
-                    <p style="font-size:24px;font-weight:700;margin:4px 0;" id="analyticsMaxPower">—</p>
-                    <p style="font-size:9px;color:#6b7280;">max peak</p>
-                </div>
-                <div style="background:linear-gradient(135deg,rgba(6,182,212,0.15),rgba(8,145,178,0.15));border:1px solid rgba(6,182,212,0.4);border-radius:12px;padding:14px;text-align:center;">
-                    <p style="font-size:10px;color:#06b6d4;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">SoH</p>
-                    <p style="font-size:24px;font-weight:700;margin:4px 0;" id="analyticsAvgSoH">—</p>
-                    <p style="font-size:9px;color:#6b7280;">avg health</p>
+                    <div style="display:flex;gap:6px;">
+                        <button class="btn btn-secondary" onclick="exportAs('csv')" style="font-size:11px;padding:8px 14px;border-radius:8px;">⬇ CSV</button>
+                        <button class="btn btn-secondary" onclick="exportAs('json')" style="font-size:11px;padding:8px 14px;border-radius:8px;">⬇ JSON</button>
+                    </div>
                 </div>
             </div>
 
-            <!-- Trends Chart -->
-            <div id="trendsContainer" class="chart-container" style="margin-bottom:20px;">
-                <h3 style="font-size:14px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
-                    <i data-lucide="trending-up" style="width:18px;height:18px;color:#a855f7;"></i>
-                    Daily Trends (30 Days)
-                </h3>
-                <canvas id="trendsChart" height="120"></canvas>
-            </div>
-
-            <!-- Comparison Chart -->
-            <div id="comparisonContainer" class="stat-card" style="margin-bottom:20px;border-color:rgba(168,85,247,0.3);">
-                <h3 style="font-size:14px;font-weight:600;margin-bottom:10px;">📊 Compare Metrics</h3>
-                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:flex-end;">
-                    <div style="flex:1;min-width:90px;">
-                        <label style="font-size:10px;color:#6b7280;display:block;margin-bottom:2px;">X</label>
-                        <select id="xAxis" class="input-field" onchange="updateComparisonChart();" style="font-size:11px;padding:6px;">
-                            <option value="time">Time</option>
-                            <option value="voltage">Voltage</option>
-                            <option value="current">Current</option>
-                            <option value="power">Power</option>
-                            <option value="soc">SoC</option>
-                            <option value="soh">SoH</option>
-                            <option value="energy">Energy</option>
-                        </select>
-                    </div>
-                    <div style="flex:1;min-width:90px;">
-                        <label style="font-size:10px;color:#6b7280;display:block;margin-bottom:2px;">Y1</label>
-                        <select id="metric1" class="input-field" onchange="updateComparisonChart();" style="font-size:11px;padding:6px;">
-                            <option value="voltage">Voltage</option>
-                            <option value="current">Current</option>
-                            <option value="power">Power</option>
-                            <option value="soc">SoC</option>
-                            <option value="soh">SoH</option>
-                            <option value="energy">Energy</option>
-                        </select>
-                    </div>
-                    <div style="flex:1;min-width:90px;">
-                        <label style="font-size:10px;color:#6b7280;display:block;margin-bottom:2px;">Y2</label>
-                        <select id="metric2" class="input-field" onchange="updateComparisonChart();" style="font-size:11px;padding:6px;">
-                            <option value="voltage">Voltage</option>
-                            <option value="current" selected>Current</option>
-                            <option value="power">Power</option>
-                            <option value="soc">SoC</option>
-                            <option value="soh">SoH</option>
-                            <option value="energy">Energy</option>
-                        </select>
-                    </div>
-                    <button class="btn btn-primary" onclick="updateComparisonChart();" style="font-size:11px;padding:8px 14px;">Update</button>
+            <!-- Section 2: Stats Overview (3x2 Grid) -->
+            <div id="statsCardsContainer" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px;">
+                <div style="background:linear-gradient(145deg,#1a1a2e,#16213e);border:1px solid rgba(59,130,246,0.35);border-radius:14px;padding:16px 12px;text-align:center;position:relative;overflow:hidden;">
+                    <div style="position:absolute;top:-10px;right:-10px;width:50px;height:50px;border-radius:50%;background:rgba(59,130,246,0.1);"></div>
+                    <p style="font-size:10px;color:#60a5fa;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">⚡ Voltage</p>
+                    <p style="font-size:28px;font-weight:800;color:#e0e7ff;margin:0;line-height:1;" id="analyticsAvgVoltage">—</p>
+                    <p style="font-size:9px;color:#4b5563;margin-top:6px;">AVG over 30 days</p>
                 </div>
-                <div class="chart-container" style="padding:12px;">
-                    <canvas id="comparisonChart" height="120"></canvas>
+                <div style="background:linear-gradient(145deg,#1a1a2e,#0f2a1f);border:1px solid rgba(34,197,94,0.35);border-radius:14px;padding:16px 12px;text-align:center;position:relative;overflow:hidden;">
+                    <div style="position:absolute;top:-10px;right:-10px;width:50px;height:50px;border-radius:50%;background:rgba(34,197,94,0.1);"></div>
+                    <p style="font-size:10px;color:#4ade80;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">🔌 Current</p>
+                    <p style="font-size:28px;font-weight:800;color:#e0e7ff;margin:0;line-height:1;" id="analyticsAvgCurrent">—</p>
+                    <p style="font-size:9px;color:#4b5563;margin-top:6px;">AVG over 30 days</p>
+                </div>
+                <div style="background:linear-gradient(145deg,#1a1a2e,#1e1333);border:1px solid rgba(168,85,247,0.35);border-radius:14px;padding:16px 12px;text-align:center;position:relative;overflow:hidden;">
+                    <div style="position:absolute;top:-10px;right:-10px;width:50px;height:50px;border-radius:50%;background:rgba(168,85,247,0.1);"></div>
+                    <p style="font-size:10px;color:#c084fc;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">🔋 Energy</p>
+                    <p style="font-size:28px;font-weight:800;color:#e0e7ff;margin:0;line-height:1;" id="analyticsTotalEnergy">—</p>
+                    <p style="font-size:9px;color:#4b5563;margin-top:6px;">kWh total consumed</p>
+                </div>
+                <div style="background:linear-gradient(145deg,#1a1a2e,#2a1f0a);border:1px solid rgba(245,158,11,0.35);border-radius:14px;padding:16px 12px;text-align:center;position:relative;overflow:hidden;">
+                    <div style="position:absolute;top:-10px;right:-10px;width:50px;height:50px;border-radius:50%;background:rgba(245,158,11,0.1);"></div>
+                    <p style="font-size:10px;color:#fbbf24;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">🔋 SoC</p>
+                    <p style="font-size:28px;font-weight:800;color:#e0e7ff;margin:0;line-height:1;" id="analyticsAvgSoC">—</p>
+                    <p style="font-size:9px;color:#4b5563;margin-top:6px;">AVG state of charge</p>
+                </div>
+                <div style="background:linear-gradient(145deg,#1a1a2e,#2a0f1e);border:1px solid rgba(236,72,153,0.35);border-radius:14px;padding:16px 12px;text-align:center;position:relative;overflow:hidden;">
+                    <div style="position:absolute;top:-10px;right:-10px;width:50px;height:50px;border-radius:50%;background:rgba(236,72,153,0.1);"></div>
+                    <p style="font-size:10px;color:#f472b6;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">💡 Power</p>
+                    <p style="font-size:28px;font-weight:800;color:#e0e7ff;margin:0;line-height:1;" id="analyticsMaxPower">—</p>
+                    <p style="font-size:9px;color:#4b5563;margin-top:6px;">MAX peak watts</p>
+                </div>
+                <div style="background:linear-gradient(145deg,#1a1a2e,#0a2129);border:1px solid rgba(6,182,212,0.35);border-radius:14px;padding:16px 12px;text-align:center;position:relative;overflow:hidden;">
+                    <div style="position:absolute;top:-10px;right:-10px;width:50px;height:50px;border-radius:50%;background:rgba(6,182,212,0.1);"></div>
+                    <p style="font-size:10px;color:#22d3ee;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">❤️ SoH</p>
+                    <p style="font-size:28px;font-weight:800;color:#e0e7ff;margin:0;line-height:1;" id="analyticsAvgSoH">—</p>
+                    <p style="font-size:9px;color:#4b5563;margin-top:6px;">AVG battery health</p>
                 </div>
             </div>
 
-            <!-- Plot Toggles + Export + Details row -->
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px;margin-bottom:20px;">
-                <!-- Plot Visibility -->
-                <div class="stat-card" style="padding:14px;">
-                    <h3 style="font-size:13px;font-weight:600;margin-bottom:10px;cursor:pointer;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;" onclick="togglePlotPanel();">✓ Show/Hide Sections <span id="plotPanelToggle" style="float:right;font-size:11px;">▼</span></h3>
+            <!-- Section 3: Trends Chart (full width) -->
+            <div id="trendsContainer" class="chart-container" style="margin-bottom:24px;border-radius:14px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+                    <h3 style="font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px;margin:0;">
+                        <i data-lucide="trending-up" style="width:18px;height:18px;color:#a855f7;"></i>
+                        Daily Trends
+                    </h3>
+                    <span style="font-size:10px;color:#6b7280;background:rgba(139,92,246,0.15);padding:4px 10px;border-radius:20px;">30 Days</span>
+                </div>
+                <canvas id="trendsChart" height="110"></canvas>
+            </div>
+
+            <!-- Section 4: Comparison Chart + Recording (side by side) -->
+            <div style="display:grid;grid-template-columns:1fr 320px;gap:16px;margin-bottom:24px;">
+                <!-- Comparison Chart -->
+                <div id="comparisonContainer" class="stat-card" style="border-color:rgba(168,85,247,0.25);border-radius:14px;">
+                    <h3 style="font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+                        <span style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#ec4899,#a855f7);display:inline-flex;align-items:center;justify-content:center;font-size:14px;">📈</span>
+                        Metric Comparison
+                    </h3>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:flex-end;">
+                        <div style="flex:1;min-width:80px;">
+                            <label style="font-size:9px;color:#6b7280;display:block;margin-bottom:3px;text-transform:uppercase;font-weight:600;">X-Axis</label>
+                            <select id="xAxis" class="input-field" onchange="updateComparisonChart();" style="font-size:11px;padding:7px 8px;border-radius:8px;">
+                                <option value="time">Time</option>
+                                <option value="voltage">Voltage</option>
+                                <option value="current">Current</option>
+                                <option value="power">Power</option>
+                                <option value="soc">SoC</option>
+                                <option value="soh">SoH</option>
+                                <option value="energy">Energy</option>
+                            </select>
+                        </div>
+                        <div style="flex:1;min-width:80px;">
+                            <label style="font-size:9px;color:#6b7280;display:block;margin-bottom:3px;text-transform:uppercase;font-weight:600;">Y-Left</label>
+                            <select id="metric1" class="input-field" onchange="updateComparisonChart();" style="font-size:11px;padding:7px 8px;border-radius:8px;">
+                                <option value="voltage">Voltage</option>
+                                <option value="current">Current</option>
+                                <option value="power">Power</option>
+                                <option value="soc">SoC</option>
+                                <option value="soh">SoH</option>
+                                <option value="energy">Energy</option>
+                            </select>
+                        </div>
+                        <div style="flex:1;min-width:80px;">
+                            <label style="font-size:9px;color:#6b7280;display:block;margin-bottom:3px;text-transform:uppercase;font-weight:600;">Y-Right</label>
+                            <select id="metric2" class="input-field" onchange="updateComparisonChart();" style="font-size:11px;padding:7px 8px;border-radius:8px;">
+                                <option value="voltage">Voltage</option>
+                                <option value="current" selected>Current</option>
+                                <option value="power">Power</option>
+                                <option value="soc">SoC</option>
+                                <option value="soh">SoH</option>
+                                <option value="energy">Energy</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary" onclick="updateComparisonChart();" style="font-size:11px;padding:8px 16px;border-radius:8px;background:linear-gradient(135deg,#8b5cf6,#6366f1);">Plot</button>
+                    </div>
+                    <div class="chart-container" style="padding:10px;border-radius:10px;">
+                        <canvas id="comparisonChart" height="110"></canvas>
+                    </div>
+                </div>
+
+                <!-- Recording Panel -->
+                <div style="display:flex;flex-direction:column;gap:16px;">
+                    <div class="stat-card" style="border-color:rgba(34,197,94,0.3);border-radius:14px;flex:1;">
+                        <h3 style="font-size:13px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px;">
+                            <span style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#22c55e,#16a34a);display:inline-flex;align-items:center;justify-content:center;font-size:13px;">📹</span>
+                            Live Recording
+                        </h3>
+                        <div style="background:rgba(0,0,0,0.25);border-radius:10px;padding:12px;margin-bottom:14px;">
+                            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                                <div id="recordingStatus" style="font-size:13px;font-weight:700;color:#ef4444;">● Stopped</div>
+                                <select class="input-field" id="exportFormat" style="font-size:10px;padding:4px 8px;width:auto;min-width:65px;border-radius:6px;">
+                                    <option value="csv">CSV</option>
+                                    <option value="json">JSON</option>
+                                    <option value="both">Both</option>
+                                </select>
+                            </div>
+                            <div style="font-size:32px;font-weight:800;color:#e0e7ff;text-align:center;padding:6px 0;" id="recordCount">0</div>
+                            <p style="font-size:10px;color:#6b7280;text-align:center;">records captured</p>
+                        </div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                            <button class="btn" onclick="startRecording()" id="startBtn" style="background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-size:12px;padding:10px;border-radius:8px;font-weight:600;">▶ Start</button>
+                            <button class="btn" onclick="stopRecording()" id="stopBtn" style="background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;font-size:12px;padding:10px;border-radius:8px;font-weight:600;" disabled>⏹ Stop</button>
+                            <button class="btn" onclick="exportRecordedData()" id="exportBtn" style="background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;font-size:12px;padding:10px;border-radius:8px;font-weight:600;" disabled>⬇ Export</button>
+                            <button class="btn btn-secondary" onclick="clearRecording()" id="clearBtn" style="font-size:12px;padding:10px;border-radius:8px;">🗑 Clear</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 5: Details + View Controls -->
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;">
+                <!-- Min/Max/Avg -->
+                <div id="detailsContainer" class="chart-container" style="padding:16px;border-radius:14px;">
+                    <h3 style="font-size:12px;font-weight:700;margin-bottom:12px;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;display:flex;align-items:center;gap:6px;">
+                        <i data-lucide="bar-chart" style="width:14px;height:14px;color:#6366f1;"></i>
+                        Min / Max / Avg
+                    </h3>
+                    <div style="font-size:12px;font-family:'JetBrains Mono',monospace;">
+                        <div style="display:grid;grid-template-columns:70px auto;gap:8px;line-height:1.8;">
+                            <span style="color:#60a5fa;font-weight:600;">Voltage:</span><span id="analyticsVoltageRange" style="color:#d1d5db;">—</span>
+                            <span style="color:#4ade80;font-weight:600;">Current:</span><span id="analyticsCurrentRange" style="color:#d1d5db;">—</span>
+                            <span style="color:#c084fc;font-weight:600;">Power:</span><span id="analyticsPowerRange" style="color:#d1d5db;">—</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Data Summary -->
+                <div class="chart-container" style="padding:16px;border-radius:14px;">
+                    <h3 style="font-size:12px;font-weight:700;margin-bottom:12px;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;display:flex;align-items:center;gap:6px;">
+                        <i data-lucide="database" style="width:14px;height:14px;color:#6366f1;"></i>
+                        Data Summary
+                    </h3>
+                    <div style="font-size:13px;line-height:2;">
+                        <p>Records: <strong id="analyticsTotalRecords" style="color:#a78bfa;font-size:15px;">0</strong></p>
+                        <p>Quality: <strong id="analyticsDataQuality" style="color:#34d399;">—</strong></p>
+                    </div>
+                </div>
+
+                <!-- Export 30d -->
+                <div id="exportsContainer" class="stat-card" style="padding:16px;border-radius:14px;">
+                    <h3 style="font-size:12px;font-weight:700;margin-bottom:12px;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;display:flex;align-items:center;gap:6px;">
+                        <i data-lucide="download" style="width:14px;height:14px;color:#6366f1;"></i>
+                        Export Data
+                    </h3>
+                    <div style="display:flex;flex-direction:column;gap:8px;">
+                        <button class="btn btn-primary" onclick="exportAs('csv')" style="background:linear-gradient(135deg,#3b82f6,#1d4ed8);font-size:12px;padding:10px;border-radius:8px;width:100%;">📄 Download CSV</button>
+                        <button class="btn btn-primary" onclick="exportAs('json')" style="background:linear-gradient(135deg,#8b5cf6,#6d28d9);font-size:12px;padding:10px;border-radius:8px;width:100%;">📄 Download JSON</button>
+                        <button class="btn btn-secondary" onclick="copyToClipboard()" style="font-size:12px;padding:10px;border-radius:8px;width:100%;">📋 Copy to Clipboard</button>
+                    </div>
+                </div>
+
+                <!-- Plot Toggles -->
+                <div class="stat-card" style="padding:16px;border-radius:14px;">
+                    <h3 style="font-size:12px;font-weight:700;margin-bottom:12px;cursor:pointer;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;display:flex;align-items:center;gap:6px;" onclick="togglePlotPanel();">
+                        <i data-lucide="eye" style="width:14px;height:14px;color:#6366f1;"></i>
+                        Visibility <span id="plotPanelToggle" style="margin-left:auto;font-size:10px;">▼</span>
+                    </h3>
                     <div id="plotPanelContent" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
-                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px;border-radius:6px;background:rgba(255,255,255,0.03);">
-                            <input type="checkbox" id="plotStatsCards" checked onchange="togglePlots();" style="width:14px;height:14px;cursor:pointer;min-width:14px;">
+                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px 8px;border-radius:8px;background:rgba(255,255,255,0.04);transition:background 0.2s;">
+                            <input type="checkbox" id="plotStatsCards" checked onchange="togglePlots();" style="width:14px;height:14px;cursor:pointer;min-width:14px;accent-color:#6366f1;">
                             <span style="font-size:11px;">Stats</span>
                         </label>
-                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px;border-radius:6px;background:rgba(255,255,255,0.03);">
-                            <input type="checkbox" id="plotVoltage" checked onchange="togglePlots();" style="width:14px;height:14px;cursor:pointer;min-width:14px;">
-                            <span style="font-size:11px;">Voltage</span>
+                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px 8px;border-radius:8px;background:rgba(255,255,255,0.04);transition:background 0.2s;">
+                            <input type="checkbox" id="plotVoltage" checked onchange="togglePlots();" style="width:14px;height:14px;cursor:pointer;min-width:14px;accent-color:#6366f1;">
+                            <span style="font-size:11px;">Trends</span>
                         </label>
-                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px;border-radius:6px;background:rgba(255,255,255,0.03);">
-                            <input type="checkbox" id="plotPower" checked onchange="togglePlots();" style="width:14px;height:14px;cursor:pointer;min-width:14px;">
-                            <span style="font-size:11px;">Power</span>
+                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px 8px;border-radius:8px;background:rgba(255,255,255,0.04);transition:background 0.2s;">
+                            <input type="checkbox" id="plotPower" checked onchange="togglePlots();" style="width:14px;height:14px;cursor:pointer;min-width:14px;accent-color:#6366f1;">
+                            <span style="font-size:11px;">Compare</span>
                         </label>
-                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px;border-radius:6px;background:rgba(255,255,255,0.03);">
-                            <input type="checkbox" id="plotEnergy" checked onchange="togglePlots();" style="width:14px;height:14px;cursor:pointer;min-width:14px;">
-                            <span style="font-size:11px;">Energy</span>
+                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px 8px;border-radius:8px;background:rgba(255,255,255,0.04);transition:background 0.2s;">
+                            <input type="checkbox" id="plotEnergy" checked onchange="togglePlots();" style="width:14px;height:14px;cursor:pointer;min-width:14px;accent-color:#6366f1;">
+                            <span style="font-size:11px;">Recording</span>
                         </label>
-                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px;border-radius:6px;background:rgba(255,255,255,0.03);">
-                            <input type="checkbox" id="plotExports" checked onchange="togglePlots();" style="width:14px;height:14px;cursor:pointer;min-width:14px;">
+                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px 8px;border-radius:8px;background:rgba(255,255,255,0.04);transition:background 0.2s;">
+                            <input type="checkbox" id="plotExports" checked onchange="togglePlots();" style="width:14px;height:14px;cursor:pointer;min-width:14px;accent-color:#6366f1;">
                             <span style="font-size:11px;">Exports</span>
                         </label>
-                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px;border-radius:6px;background:rgba(255,255,255,0.03);">
-                            <input type="checkbox" id="plotDetails" checked onchange="togglePlots();" style="width:14px;height:14px;cursor:pointer;min-width:14px;">
+                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px 8px;border-radius:8px;background:rgba(255,255,255,0.04);transition:background 0.2s;">
+                            <input type="checkbox" id="plotDetails" checked onchange="togglePlots();" style="width:14px;height:14px;cursor:pointer;min-width:14px;accent-color:#6366f1;">
                             <span style="font-size:11px;">Details</span>
                         </label>
-                    </div>
-                </div>
-
-                <!-- Export -->
-                <div id="exportsContainer" class="stat-card" style="padding:14px;">
-                    <h3 style="font-size:13px;font-weight:600;margin-bottom:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;">⬇ Export 30-Day Data</h3>
-                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                        <button class="btn btn-primary" onclick="exportAs('csv')" style="background:linear-gradient(135deg,#3b82f6,#2563eb);font-size:11px;padding:8px 16px;flex:1;">CSV</button>
-                        <button class="btn btn-primary" onclick="exportAs('json')" style="background:linear-gradient(135deg,#8b5cf6,#7c3aed);font-size:11px;padding:8px 16px;flex:1;">JSON</button>
-                        <button class="btn btn-secondary" onclick="copyToClipboard()" style="font-size:11px;padding:8px 16px;flex:1;">📋 Copy</button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Details Grid -->
-            <div id="detailsContainer" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px;">
-                <div class="chart-container" style="padding:14px;">
-                    <h3 style="font-size:13px;font-weight:600;margin-bottom:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;">Min / Max / Avg</h3>
-                    <div style="font-size:12px;font-family:monospace;">
-                        <div style="display:grid;grid-template-columns:70px auto;gap:6px;">
-                            <span style="color:#3b82f6;">Voltage:</span><span id="analyticsVoltageRange">—</span>
-                            <span style="color:#22c55e;">Current:</span><span id="analyticsCurrentRange">—</span>
-                            <span style="color:#a855f7;">Power:</span><span id="analyticsPowerRange">—</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="chart-container" style="padding:14px;">
-                    <h3 style="font-size:13px;font-weight:600;margin-bottom:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;">Data Summary</h3>
-                    <div style="font-size:12px;">
-                        <p style="margin-bottom:6px;">Total Records: <strong id="analyticsTotalRecords" style="color:#a855f7;">0</strong></p>
-                        <p>Data Quality: <strong id="analyticsDataQuality" style="color:#22c55e;">—</strong></p>
                     </div>
                 </div>
             </div>
@@ -685,15 +727,126 @@
 
         <!-- Reports Tab -->
         <div id="tab-reports" class="tab-content">
-            <h2 style="font-size:24px;font-weight:700;margin-bottom:24px;">Battery Health Reports</h2>
-            <div class="stat-card" style="margin-bottom:24px;">
-                <h3 style="font-size:18px;font-weight:600;margin-bottom:16px;">Generate Report</h3>
-                <div style="display:flex;flex-wrap:wrap;gap:12px;">
-                    <button class="btn btn-primary" onclick="downloadCSV()">
-                        <i data-lucide="download" style="width:16px;height:16px;margin-right:8px;"></i>
-                        Download CSV
-                    </button>
-                    <button class="btn btn-secondary" onclick="clearHistory()">Clear History</button>
+            <!-- Report Header -->
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;">
+                <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#f59e0b,#d97706);display:flex;align-items:center;justify-content:center;font-size:22px;">📋</div>
+                <div>
+                    <h2 style="font-size:22px;font-weight:700;margin:0;">Battery Reports</h2>
+                    <p style="font-size:12px;color:#6b7280;margin:2px 0 0;">Health assessment, data export &amp; session management</p>
+                </div>
+            </div>
+
+            <!-- Report Cards Row 1: Health + Quick Stats -->
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:20px;">
+                <!-- Health Assessment Card -->
+                <div class="stat-card" style="border-radius:14px;border-color:rgba(34,197,94,0.3);">
+                    <h3 style="font-size:14px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+                        <span style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#22c55e,#16a34a);display:inline-flex;align-items:center;justify-content:center;font-size:14px;">❤️</span>
+                        Battery Health
+                    </h3>
+                    <div style="text-align:center;margin-bottom:16px;">
+                        <div id="reportHealthScore" style="font-size:48px;font-weight:800;color:#22c55e;line-height:1;">—</div>
+                        <p style="font-size:11px;color:#6b7280;margin-top:4px;">Health Score</p>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                        <div style="background:rgba(0,0,0,0.2);border-radius:8px;padding:10px;text-align:center;">
+                            <p style="font-size:9px;color:#9ca3af;text-transform:uppercase;">Voltage</p>
+                            <p style="font-size:14px;font-weight:700;" id="reportAvgVoltage">—</p>
+                        </div>
+                        <div style="background:rgba(0,0,0,0.2);border-radius:8px;padding:10px;text-align:center;">
+                            <p style="font-size:9px;color:#9ca3af;text-transform:uppercase;">Current</p>
+                            <p style="font-size:14px;font-weight:700;" id="reportAvgCurrent">—</p>
+                        </div>
+                        <div style="background:rgba(0,0,0,0.2);border-radius:8px;padding:10px;text-align:center;">
+                            <p style="font-size:9px;color:#9ca3af;text-transform:uppercase;">Peak Power</p>
+                            <p style="font-size:14px;font-weight:700;" id="reportMaxPower">—</p>
+                        </div>
+                        <div style="background:rgba(0,0,0,0.2);border-radius:8px;padding:10px;text-align:center;">
+                            <p style="font-size:9px;color:#9ca3af;text-transform:uppercase;">Energy</p>
+                            <p style="font-size:14px;font-weight:700;" id="reportEnergy">—</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Session Summary Card -->
+                <div class="stat-card" style="border-radius:14px;border-color:rgba(99,102,241,0.3);">
+                    <h3 style="font-size:14px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+                        <span style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#6366f1,#4f46e5);display:inline-flex;align-items:center;justify-content:center;font-size:14px;">📊</span>
+                        Session Summary
+                    </h3>
+                    <div style="display:flex;flex-direction:column;gap:10px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:rgba(0,0,0,0.2);border-radius:8px;">
+                            <span style="font-size:12px;color:#9ca3af;">Total Messages</span>
+                            <strong style="font-size:15px;color:#818cf8;" id="reportTotalMessages">0</strong>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:rgba(0,0,0,0.2);border-radius:8px;">
+                            <span style="font-size:12px;color:#9ca3af;">Session Duration</span>
+                            <strong style="font-size:15px;color:#818cf8;" id="reportSessionDuration">—</strong>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:rgba(0,0,0,0.2);border-radius:8px;">
+                            <span style="font-size:12px;color:#9ca3af;">Data Points</span>
+                            <strong style="font-size:15px;color:#818cf8;" id="reportDataPoints">0</strong>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:rgba(0,0,0,0.2);border-radius:8px;">
+                            <span style="font-size:12px;color:#9ca3af;">Avg Power</span>
+                            <strong style="font-size:15px;color:#818cf8;" id="reportAvgPower">0 W</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Report Cards Row 2: Export + Actions -->
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:20px;">
+                <!-- Data Export Card -->
+                <div class="stat-card" style="border-radius:14px;border-color:rgba(59,130,246,0.3);">
+                    <h3 style="font-size:14px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+                        <span style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#3b82f6,#2563eb);display:inline-flex;align-items:center;justify-content:center;font-size:14px;">💾</span>
+                        Export Session Data
+                    </h3>
+                    <p style="font-size:12px;color:#6b7280;margin-bottom:16px;">Download current session data collected from MQTT messages for offline analysis.</p>
+                    <div style="display:flex;flex-direction:column;gap:10px;">
+                        <button class="btn btn-primary" onclick="downloadCSV()" style="width:100%;padding:12px;font-size:13px;border-radius:10px;background:linear-gradient(135deg,#3b82f6,#1d4ed8);display:flex;align-items:center;justify-content:center;gap:8px;">
+                            <i data-lucide="file-spreadsheet" style="width:16px;height:16px;"></i>
+                            Download as CSV
+                        </button>
+                        <button class="btn btn-primary" onclick="downloadSessionJSON()" style="width:100%;padding:12px;font-size:13px;border-radius:10px;background:linear-gradient(135deg,#8b5cf6,#6d28d9);display:flex;align-items:center;justify-content:center;gap:8px;">
+                            <i data-lucide="file-json" style="width:16px;height:16px;"></i>
+                            Download as JSON
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Quick Actions Card -->
+                <div class="stat-card" style="border-radius:14px;border-color:rgba(245,158,11,0.3);">
+                    <h3 style="font-size:14px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+                        <span style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#f59e0b,#d97706);display:inline-flex;align-items:center;justify-content:center;font-size:14px;">⚡</span>
+                        Quick Actions
+                    </h3>
+                    <div style="display:flex;flex-direction:column;gap:10px;">
+                        <button class="btn btn-secondary" onclick="clearHistory()" style="width:100%;padding:12px;font-size:13px;border-radius:10px;display:flex;align-items:center;justify-content:center;gap:8px;">
+                            <i data-lucide="trash-2" style="width:16px;height:16px;"></i>
+                            Clear Session Data
+                        </button>
+                        <button class="btn btn-secondary" onclick="load30DayAnalytics()" style="width:100%;padding:12px;font-size:13px;border-radius:10px;display:flex;align-items:center;justify-content:center;gap:8px;">
+                            <i data-lucide="refresh-cw" style="width:16px;height:16px;"></i>
+                            Reload 30-Day Analytics
+                        </button>
+                        <button class="btn btn-secondary" onclick="switchTab('analytics', document.querySelectorAll('.sidebar-item')[2])" style="width:100%;padding:12px;font-size:13px;border-radius:10px;display:flex;align-items:center;justify-content:center;gap:8px;">
+                            <i data-lucide="bar-chart-3" style="width:16px;height:16px;"></i>
+                            Go to Analytics
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Activity Log -->
+            <div class="stat-card" style="border-radius:14px;border-color:rgba(75,85,99,0.3);">
+                <h3 style="font-size:14px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px;">
+                    <span style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#6b7280,#4b5563);display:inline-flex;align-items:center;justify-content:center;font-size:14px;">📝</span>
+                    Recent Activity
+                </h3>
+                <div id="activityLog" style="max-height:200px;overflow-y:auto;font-size:12px;font-family:monospace;color:#9ca3af;">
+                    <p style="padding:8px 12px;background:rgba(0,0,0,0.2);border-radius:6px;margin-bottom:4px;">⏳ Waiting for activity...</p>
                 </div>
             </div>
         </div>
@@ -1084,7 +1237,86 @@
             a.download = 'battery_data_' + new Date().toISOString().slice(0,10) + '.csv';
             a.click();
             URL.revokeObjectURL(url);
+            addActivityLog('Exported session data as CSV (' + dataHistory.length + ' records)');
         }
+
+        function downloadSessionJSON() {
+            if (dataHistory.length === 0) {
+                alert('No data to export');
+                return;
+            }
+            const data = {
+                exported_at: new Date().toISOString(),
+                device_id: 'battery_esp32_1',
+                total_records: dataHistory.length,
+                data: dataHistory
+            };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'battery_session_' + new Date().toISOString().slice(0,10) + '.json';
+            a.click();
+            URL.revokeObjectURL(url);
+            addActivityLog('Exported session data as JSON (' + dataHistory.length + ' records)');
+        }
+
+        function addActivityLog(msg) {
+            const log = document.getElementById('activityLog');
+            if (!log) return;
+            const time = new Date().toLocaleTimeString();
+            const entry = document.createElement('p');
+            entry.style.cssText = 'padding:8px 12px;background:rgba(0,0,0,0.2);border-radius:6px;margin-bottom:4px;';
+            entry.textContent = time + ' — ' + msg;
+            // Remove the "waiting" placeholder
+            const placeholder = log.querySelector('p');
+            if (placeholder && placeholder.textContent.includes('Waiting')) placeholder.remove();
+            log.insertBefore(entry, log.firstChild);
+            // Keep max 20 entries
+            while (log.children.length > 20) log.removeChild(log.lastChild);
+        }
+
+        function updateReportTab() {
+            // Session stats
+            document.getElementById('reportTotalMessages').textContent = messageCount || '0';
+            document.getElementById('reportDataPoints').textContent = dataHistory.length || '0';
+            document.getElementById('reportAvgPower').textContent = messageCount > 0 ? (powerSum / messageCount).toFixed(2) + ' W' : '0 W';
+            // Duration
+            if (window._sessionStart) {
+                const dur = Math.floor((Date.now() - window._sessionStart) / 1000);
+                const h = Math.floor(dur / 3600);
+                const m = Math.floor((dur % 3600) / 60);
+                const s = dur % 60;
+                document.getElementById('reportSessionDuration').textContent = (h > 0 ? h + 'h ' : '') + m + 'm ' + s + 's';
+            }
+            // Latest values for health card
+            if (dataHistory.length > 0) {
+                const last = dataHistory[dataHistory.length - 1];
+                document.getElementById('reportAvgVoltage').textContent = (last.voltage ?? '—') + ' V';
+                document.getElementById('reportAvgCurrent').textContent = (last.current ?? '—') + ' A';
+                document.getElementById('reportMaxPower').textContent = (last.power ?? '—') + ' W';
+                // Health score based on SoH if available
+                const soh = last.soh ?? last.soh_percent;
+                if (soh !== undefined && soh !== null) {
+                    const score = parseFloat(soh);
+                    const el = document.getElementById('reportHealthScore');
+                    el.textContent = score.toFixed(1) + '%';
+                    el.style.color = score >= 80 ? '#22c55e' : score >= 50 ? '#f59e0b' : '#ef4444';
+                } else {
+                    document.getElementById('reportHealthScore').textContent = '—';
+                }
+            }
+            // Energy
+            const energyEl = document.getElementById('reportEnergy');
+            if (energyEl) {
+                const kwh = (powerSum * 5 / 3600 / 1000);
+                energyEl.textContent = kwh.toFixed(4) + ' kWh';
+            }
+        }
+
+        // Auto-update reports every 5 seconds
+        if (!window._sessionStart) window._sessionStart = Date.now();
+        setInterval(updateReportTab, 5000);
 
         function clearHistory() {
             dataHistory = [];
@@ -1093,6 +1325,7 @@
             document.getElementById('diagMsgCount').textContent = '0';
             document.getElementById('totalMessages').textContent = '0';
             document.getElementById('avgPower').textContent = '0 W';
+            addActivityLog('Session data cleared');
             vcChart.data.labels = [];
             vcChart.data.datasets[0].data = [];
             vcChart.data.datasets[1].data = [];
@@ -1226,6 +1459,7 @@
                 // Update comparison chart with default metrics
                 updateComparisonChart();
                 
+                addActivityLog('Loaded ' + readingsData.count + ' records from 30-day MongoDB analytics');
                 alert('✓ Loaded ' + readingsData.count + ' records from last 30 days!');
             } catch (e) {
                 console.error('[Analytics] Error:', e.message);
@@ -1524,19 +1758,20 @@
         // ===== Plot Visibility Toggle Function =====
         function togglePlots() {
             const showStats = document.getElementById('plotStatsCards').checked;
-            const showVoltage = document.getElementById('plotVoltage').checked;
-            const showPower = document.getElementById('plotPower').checked;
-            const showEnergy = document.getElementById('plotEnergy').checked;
+            const showTrends = document.getElementById('plotVoltage').checked;
+            const showCompare = document.getElementById('plotPower').checked;
+            const showRecording = document.getElementById('plotEnergy').checked;
             const showExports = document.getElementById('plotExports').checked;
             const showDetails = document.getElementById('plotDetails').checked;
 
             // Toggle visibility for each section
             document.getElementById('statsCardsContainer').style.display = showStats ? 'grid' : 'none';
+            document.getElementById('trendsContainer').style.display = showTrends ? 'block' : 'none';
+            document.getElementById('comparisonContainer').style.display = showCompare ? 'block' : 'none';
             document.getElementById('exportsContainer').style.display = showExports ? 'block' : 'none';
-            document.getElementById('trendsContainer').style.display = (showVoltage || showPower || showEnergy) ? 'block' : 'none';
-            document.getElementById('detailsContainer').style.display = showDetails ? 'grid' : 'none';
+            document.getElementById('detailsContainer').style.display = showDetails ? 'block' : 'none';
 
-            console.log('[Plots] Visibility updated - Stats:', showStats, 'Voltage:', showVoltage, 'Power:', showPower, 'Energy:', showEnergy, 'Exports:', showExports, 'Details:', showDetails);
+            console.log('[Plots] Visibility updated');
         }
 
         function exportRecordedData() {
