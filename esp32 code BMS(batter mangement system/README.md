@@ -5,6 +5,22 @@ It measures voltage, current, power, temperature, State-of-Charge (SoC), and Sta
 
 ---
 
+## About This Project
+
+Battery management is one of the most critical aspects of any energy storage system. Overcharging, over-discharging, and thermal runaway are the leading causes of battery degradation and, in serious cases, fire hazards. This project was built to address those risks with a low-cost, open-source solution based on the ESP32 microcontroller.
+
+The system continuously monitors a lithium-ion battery pack using an **INA219** power sensor for precise voltage, current, and power readings, and an **LM35** analog temperature sensor for thermal protection. All measurements are processed on-device and used to calculate the battery's **State of Charge (SoC)** — how much energy is left — and **State of Health (SoH)** — how much capacity the battery has retained over its lifetime compared to its original rating.
+
+A key feature of this BMS is its **Amp-Hour (AH) tracking**. Rather than relying solely on voltage thresholds, the firmware integrates current over time (`AH = ∑ |I| × Δt`) to measure actual energy drawn from the battery. When the accumulated AH reaches **50% of the rated capacity (2.1 Ah out of 4.2 Ah)**, a relay on **GPIO26** automatically disconnects the charge circuit, protecting the battery from deep discharge. This threshold, along with overvoltage, over-temperature, and SoC limits, forms a multi-layer safety system.
+
+All data is published every 5 seconds as a structured **JSON payload over MQTT** (TLS-encrypted) to **HiveMQ Cloud**, making it available to any connected dashboard, mobile app, or backend server in real time. The firmware also supports **remote relay control** via MQTT — an operator can force the relay open or closed, reset the AH counter after a battery swap, or reboot the device, all without physical access.
+
+To ensure reliability, the firmware uses **FreeRTOS** with four dedicated tasks pinned across the ESP32's two cores: one for sensor reading, one for network communication, one for the OLED display, and one for the hardware watchdog. If any task stalls or the system enters an inconsistent state, the 30-second watchdog timer automatically resets the device. An **EEPROM offline buffer** ensures no data is lost during temporary WiFi or MQTT outages — samples are stored locally and flushed to the cloud when the connection is restored.
+
+This project is designed for use in solar energy systems, electric vehicle auxiliary packs, UPS units, and any application where battery health monitoring and autonomous charge control are required.
+
+---
+
 ## Features
 
 | Feature | Detail |
