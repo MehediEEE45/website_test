@@ -544,7 +544,7 @@
                 </div>
             </div>
 
-            <!-- Section 2: Stats Overview (3x2 Grid) -->
+            <!-- Section 2: Stats Overview (3x3 Grid) -->
             <div id="statsCardsContainer" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px;">
                 <div style="background:linear-gradient(145deg,#1a1a2e,#16213e);border:1px solid rgba(59,130,246,0.35);border-radius:14px;padding:16px 12px;text-align:center;position:relative;overflow:hidden;">
                     <div style="position:absolute;top:-10px;right:-10px;width:50px;height:50px;border-radius:50%;background:rgba(59,130,246,0.1);"></div>
@@ -582,6 +582,12 @@
                     <p style="font-size:28px;font-weight:800;color:#e0e7ff;margin:0;line-height:1;" id="analyticsAvgSoH">—</p>
                     <p style="font-size:9px;color:#4b5563;margin-top:6px;">AVG battery health</p>
                 </div>
+                <div style="background:linear-gradient(145deg,#1a1a2e,#1a1824);border:1px solid rgba(239,68,68,0.35);border-radius:14px;padding:16px 12px;text-align:center;position:relative;overflow:hidden;">
+                    <div style="position:absolute;top:-10px;right:-10px;width:50px;height:50px;border-radius:50%;background:rgba(239,68,68,0.1);"></div>
+                    <p style="font-size:10px;color:#f87171;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">🌡️ Temp</p>
+                    <p style="font-size:28px;font-weight:800;color:#e0e7ff;margin:0;line-height:1;" id="analyticsAvgTemp">—</p>
+                    <p style="font-size:9px;color:#4b5563;margin-top:6px;">AVG temperature</p>
+                </div>
             </div>
 
             <!-- Section 3: Trends Chart (full width) -->
@@ -591,6 +597,13 @@
                         <i data-lucide="trending-up" style="width:18px;height:18px;color:#a855f7;"></i>
                         Daily Trends
                     </h3>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;padding:4px 8px;border-radius:6px;background:rgba(255,255,255,0.04);font-size:10px;"><input type="checkbox" id="trendVoltage" checked onchange="updateTrendsChartFromFilters();" style="width:12px;height:12px;cursor:pointer;accent-color:#3b82f6;"><span>Voltage</span></label>
+                        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;padding:4px 8px;border-radius:6px;background:rgba(255,255,255,0.04);font-size:10px;"><input type="checkbox" id="trendPower" checked onchange="updateTrendsChartFromFilters();" style="width:12px;height:12px;cursor:pointer;accent-color:#a855f7;"><span>Power</span></label>
+                        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;padding:4px 8px;border-radius:6px;background:rgba(255,255,255,0.04);font-size:10px;"><input type="checkbox" id="trendTemperature" checked onchange="updateTrendsChartFromFilters();" style="width:12px;height:12px;cursor:pointer;accent-color:#ef4444;"><span>Temp</span></label>
+                        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;padding:4px 8px;border-radius:6px;background:rgba(255,255,255,0.04);font-size:10px;"><input type="checkbox" id="trendSoC" onchange="updateTrendsChartFromFilters();" style="width:12px;height:12px;cursor:pointer;accent-color:#f59e0b;"><span>SoC</span></label>
+                        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;padding:4px 8px;border-radius:6px;background:rgba(255,255,255,0.04);font-size:10px;"><input type="checkbox" id="trendEnergy" checked onchange="updateTrendsChartFromFilters();" style="width:12px;height:12px;cursor:pointer;accent-color:#ec4899;"><span>Energy</span></label>
+                    </div>
                     <span style="font-size:10px;color:#6b7280;background:rgba(139,92,246,0.15);padding:4px 10px;border-radius:20px;">30 Days</span>
                 </div>
                 <canvas id="trendsChart" height="110"></canvas>
@@ -1618,6 +1631,7 @@
                     document.getElementById('analyticsAvgSoC').textContent = (s.soc?.avg ?? '—') + ' %';
                     document.getElementById('analyticsMaxPower').textContent = (s.power?.max ?? '—') + ' W';
                     document.getElementById('analyticsAvgSoH').textContent = (s.soh?.avg ?? '—') + ' %';
+                    document.getElementById('analyticsAvgTemp').textContent = (s.temperature?.avg ?? '—') + ' °C';
                     
                     // Range details
                     const vr = s.voltage ? `Min: ${s.voltage.min}V, Max: ${s.voltage.max}V, Avg: ${s.voltage.avg}V` : '—';
@@ -1635,9 +1649,11 @@
                 // Update trends chart with selected datasets
                 if (trendsData.trends && trendsData.trends.length > 0) {
                     const filter = {
-                        voltage: document.getElementById('plotVoltage').checked,
-                        power: document.getElementById('plotPower').checked,
-                        energy: document.getElementById('plotEnergy').checked
+                        voltage: document.getElementById('trendVoltage')?.checked ?? true,
+                        power: document.getElementById('trendPower')?.checked ?? true,
+                        temperature: document.getElementById('trendTemperature')?.checked ?? true,
+                        energy: document.getElementById('trendEnergy')?.checked ?? true,
+                        soc: document.getElementById('trendSoC')?.checked ?? false
                     };
                     updateTrendsChart(trendsData.trends, filter);
                 }
@@ -1654,20 +1670,39 @@
         }
 
         // Update trends chart with daily data - accepts optional dataset filter
-        function updateTrendsChart(trends, filter = { voltage: true, power: true, energy: true }) {
+        function updateTrendsChart(trends, filter = { voltage: true, power: true, energy: true, temperature: true, soc: false }) {
             if (trendsChart) trendsChart.destroy();
             
             const canvas = document.getElementById('trendsChart');
             const dates = trends.map(t => t.date.slice(5)); // MM-DD format
             const voltages = trends.map(t => parseFloat(t.voltage_avg) || 0);
             const powers = trends.map(t => parseFloat(t.power_avg) || 0);
+            const temperatures = trends.map(t => parseFloat(t.temperature_avg) || 0);
             const energies = trends.map(t => parseFloat(t.energy_kwh) || 0);
+            const socs = trends.map(t => parseFloat(t.soc_avg) || 0);
             
             // Build datasets based on filter
+            let yAxisCount = 0;
             const datasets = [];
-            if (filter.voltage) datasets.push({ label: 'Voltage (V)', data: voltages, borderColor: '#3b82f6', yAxisID: 'y', tension: 0.3, fill: false, pointRadius: 2 });
-            if (filter.power) datasets.push({ label: 'Power (W)', data: powers, borderColor: '#a855f7', yAxisID: 'y1', tension: 0.3, fill: false, pointRadius: 2 });
-            if (filter.energy) datasets.push({ label: 'Energy (kWh)', data: energies, borderColor: '#10b981', yAxisID: 'y2', tension: 0.3, fill: false, pointRadius: 2 });
+            const axisMap = {};
+            
+            if (filter.voltage) { datasets.push({ label: 'Voltage (V)', data: voltages, borderColor: '#3b82f6', yAxisID: 'y', tension: 0.3, fill: false, pointRadius: 2 }); axisMap.voltage = 'y'; yAxisCount++; }
+            if (filter.power) { datasets.push({ label: 'Power (W)', data: powers, borderColor: '#a855f7', yAxisID: 'y' + (yAxisCount > 0 ? '1' : ''), tension: 0.3, fill: false, pointRadius: 2 }); axisMap.power = 'y' + (yAxisCount > 0 ? '1' : ''); yAxisCount++; }
+            if (filter.temperature) { datasets.push({ label: 'Temp (°C)', data: temperatures, borderColor: '#ef4444', yAxisID: 'y' + (yAxisCount > 0 ? yAxisCount : ''), tension: 0.3, fill: false, pointRadius: 2 }); axisMap.temperature = 'y' + (yAxisCount > 0 ? yAxisCount : ''); yAxisCount++; }
+            if (filter.energy) { datasets.push({ label: 'Energy (kWh)', data: energies, borderColor: '#10b981', yAxisID: 'y' + (yAxisCount > 0 ? yAxisCount : ''), tension: 0.3, fill: false, pointRadius: 2 }); axisMap.energy = 'y' + (yAxisCount > 0 ? yAxisCount : ''); yAxisCount++; }
+            if (filter.soc) { datasets.push({ label: 'SoC (%)', data: socs, borderColor: '#f59e0b', yAxisID: 'y' + (yAxisCount > 0 ? yAxisCount : ''), tension: 0.3, fill: false, pointRadius: 2 }); axisMap.soc = 'y' + (yAxisCount > 0 ? yAxisCount : ''); yAxisCount++; }
+            
+            // Build scales dynamically
+            const scales = { x: { ticks: { color: '#6b7280' }, grid: { color: '#2a2a2a' } } };
+            if (axisMap.voltage || axisMap.power || axisMap.currentpowers) {
+                scales.y = { type: 'linear', position: 'left', ticks: { color: '#6b7280' }, grid: { color: '#2a2a2a' }, title: { display: true, text: axisMap.voltage ? 'Voltage' : 'Power' } };
+            }
+            if (axisMap.power || axisMap.temperature || axisMap.energy || axisMap.soc) {
+                scales.y1 = { type: 'linear', position: 'right', ticks: { color: '#6b7280' }, grid: { drawOnChartArea: false }, title: { display: true, text: axisMap.power ? 'Power' : (axisMap.temperature ? 'Temp' : (axisMap.energy ? 'Energy' : 'SoC')) } };
+            }
+            if ((axisMap.temperature && (axisMap.power || axisMap.energy || axisMap.soc)) || (axisMap.energy && axisMap.soc)) {
+                scales.y2 = { type: 'linear', position: 'left', ticks: { color: '#6b7280' }, stack: 'demo', grid: { drawOnChartArea: false }, title: { display: true, text: axisMap.temperature ? 'Temp' : 'Energy' } };
+            }
             
             trendsChart = new Chart(canvas.getContext('2d'), {
                 type: 'line',
@@ -1678,6 +1713,26 @@
                 options: {
                     responsive: true,
                     plugins: { legend: { labels: { color: '#9ca3af' } } },
+                    scales: scales
+                }
+            });
+        }
+        
+        // Update trends chart based on user-selected metric filters
+        function updateTrendsChartFromFilters() {
+            if (!lastTrendsData || lastTrendsData.length === 0) {
+                console.log('[Trends] No data available');
+                return;
+            }
+            const filter = {
+                voltage: document.getElementById('trendVoltage')?.checked || false,
+                power: document.getElementById('trendPower')?.checked || false,
+                temperature: document.getElementById('trendTemperature')?.checked || false,
+                energy: document.getElementById('trendEnergy')?.checked || false,
+                soc: document.getElementById('trendSoC')?.checked || false
+            };
+            updateTrendsChart(lastTrendsData, filter);
+        }
                     scales: {
                         y: { type: 'linear', position: 'left', ticks: { color: '#6b7280' }, grid: { color: '#2a2a2a' }, title: { display: true, text: 'Voltage (V)' } },
                         y1: { type: 'linear', position: 'right', ticks: { color: '#6b7280' }, grid: { drawOnChartArea: false }, title: { display: true, text: 'Power (W)' } },
@@ -2130,7 +2185,7 @@
         }
 
         function exportRecordingAsCSV() {
-            let csv = 'Timestamp,Date,Voltage (V),Current (A),Power (W),SoC (%),SoH (%),Uptime (ms)\n';
+            let csv = 'Timestamp,Date,Voltage (V),Current (A),Power (W),Temperature (°C),SoC (%),SoH (%),Uptime (ms)\n';
             
             recordedData.forEach(record => {
                 const payload = record.payload || {};
@@ -2138,11 +2193,12 @@
                 const voltage = payload.bus_V ?? payload.voltage ?? '';
                 const current = payload.current_A ?? payload.current ?? '';
                 const power = payload.power_W ?? payload.power ?? '';
+                const temperature = payload.temperature ?? payload.temp_c ?? '';
                 const soc = payload.soc_percent ?? '';
                 const soh = payload.soh_percent ?? '';
                 const uptime = payload.uptime_ms ?? '';
                 
-                csv += `${record.ts},"${date}",${voltage},${current},${power},${soc},${soh},${uptime}\n`;
+                csv += `${record.ts},"${date}",${voltage},${current},${power},${temperature},${soc},${soh},${uptime}\n`;
             });
             
             const blob = new Blob([csv], { type: 'text/csv' });
