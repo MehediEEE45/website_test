@@ -181,6 +181,19 @@ client.on('message', async (topic, message) => {
 const app = express();
 app.use(bodyParser.json());
 
+// CORS — allow Netlify and local dev frontends
+app.use((req, res, next) => {
+  const allowedOrigins = ['https://power-monitor.netlify.app', 'http://localhost:3000', 'http://127.0.0.1:3000'];
+  const origin = req.headers.origin;
+  if (origin && (allowedOrigins.includes(origin) || origin.startsWith('http://192.168.') || origin.startsWith('http://localhost'))) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
+
 // Serve static files from public directory
 app.use(express.static(path.join(__dirname, '../public')));
 

@@ -930,6 +930,29 @@
                 </div>
             </div>
 
+            <!-- Backend Server Configuration -->
+            <div style="max-width:600px;margin-top:24px;">
+                <div class="stat-card">
+                    <h3 style="font-size:18px;font-weight:600;margin-bottom:16px;">Backend Server (MongoDB API)</h3>
+                    <div style="display:grid;gap:16px;">
+                        <div>
+                            <label style="font-size:14px;color:#9ca3af;display:block;margin-bottom:8px;">Server URL</label>
+                            <input type="text" class="input-field" id="backendUrl" placeholder="http://192.168.0.103:3000">
+                            <p style="font-size:11px;color:#6b7280;margin-top:4px;">Your Express server address (e.g. http://localhost:3000 or http://192.168.x.x:3000)</p>
+                        </div>
+                        <div>
+                            <label style="font-size:14px;color:#9ca3af;display:block;margin-bottom:8px;">Device ID</label>
+                            <input type="text" class="input-field" id="backendDeviceId" value="battery_esp32_1">
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:12px;margin-top:16px;">
+                        <button class="btn btn-primary" onclick="saveBackendConfig()">Save Backend Config</button>
+                        <button class="btn btn-secondary" onclick="testBackendConnection()">Test Connection</button>
+                    </div>
+                    <div id="backendStatus" style="font-size:12px;margin-top:12px;color:#9ca3af;"></div>
+                </div>
+            </div>
+
             <!-- MongoDB Configuration -->
             <div style="max-width:600px;margin-top:24px;">
                 <div class="stat-card">
@@ -955,7 +978,6 @@
                     </div>
                     <div style="display:flex;gap:12px;margin-top:16px;">
                         <button class="btn btn-primary" onclick="saveMongoConfig()">Save MongoDB Config</button>
-                        <button class="btn btn-secondary" onclick="testMongoConnection()">Test Connection</button>
                     </div>
                     <div id="mongoStatus" style="font-size:12px;margin-top:12px;color:#9ca3af;"></div>
                 </div>
@@ -1002,6 +1024,16 @@
         let isRecording = false;
         let recordedData = [];
         let mongoConfig = { uri: '', db: 'battery_monitor', collection: 'telemetry', ttl: 30 };
+        let backendConfig = { url: '', deviceId: 'battery_esp32_1' };
+
+        // Get the backend server URL (from config or fallback to same origin)
+        function getBackendUrl() {
+            if (backendConfig.url) return backendConfig.url.replace(/\/+$/, '');
+            return window.location.protocol + '//' + window.location.host;
+        }
+        function getDeviceId() {
+            return backendConfig.deviceId || 'battery_esp32_1';
+        }
 
         // Chart instances
         let vcChart, powerChart, tempChart, historyChart, trendsChart, comparisonChart;
@@ -1427,9 +1459,8 @@
         // Load historical data from MongoDB
         async function loadMongoHistory() {
             try {
-                // Determine server URL (same origin)
-                const serverUrl = window.location.protocol + '//' + window.location.host;
-                const deviceId = 'battery_esp32_1';
+                const serverUrl = getBackendUrl();
+                const deviceId = getDeviceId();
                 const limit = 200;
                 const response = await fetch(`${serverUrl}/api/mongo/readings/${deviceId}?limit=${limit}`);
                 
@@ -1491,8 +1522,8 @@
         // Load 30-day analytics from server
         async function load30DayAnalytics() {
             try {
-                const serverUrl = window.location.protocol + '//' + window.location.host;
-                const deviceId = 'battery_esp32_1';
+                const serverUrl = getBackendUrl();
+                const deviceId = getDeviceId();
                 
                 console.log('[Analytics] Loading 30-day data...');
                 
@@ -1745,8 +1776,8 @@
         // Export functions
         async function exportAs(format) {
             try {
-                const serverUrl = window.location.protocol + '//' + window.location.host;
-                const deviceId = 'battery_esp32_1';
+                const serverUrl = getBackendUrl();
+                const deviceId = getDeviceId();
                 const url = `${serverUrl}/api/mongo/export/${format}/${deviceId}?days=30`;
                 
                 console.log('[Export] Downloading', format.toUpperCase());
@@ -1790,20 +1821,44 @@
             }
         }
 
-        function testMongoConnection() {
-            if (!mongoConfig.uri) {
-                alert('Please enter MongoDB URI first');
-                return;
+        function saveBackendConfig() {
+            backendConfig.url = document.getElementById('backendUrl').value.trim();
+            backendConfig.deviceId = document.getElementById('backendDeviceId').value.trim() || 'battery_esp32_1';
+            localStorage.setItem('backend_config', JSON.stringify(backendConfig));
+            document.getElementById('backendStatus').innerHTML = '<span style="color:#22c55e;">✓ Backend configuration saved!</span>';
+            setTimeout(() => { document.getElementById('backendStatus').innerHTML = ''; }, 3000);
+        }
+
+        function loadBackendConfig() {
+            const saved = localStorage.getItem('backend_config');
+            if (saved) {
+                backendConfig = JSON.parse(saved);
+                document.getElementById('backendUrl').value = backendConfig.url || '';
+                document.getElementById('backendDeviceId').value = backendConfig.deviceId || 'battery_esp32_1';
             }
-            document.getElementById('mongoStatus').innerHTML = '<span style="color:#3b82f6;">Testing connection...</span>';
-            
-            // Simulate connection test (would need backend endpoint in production)
-            setTimeout(() => {
-                document.getElementById('mongoStatus').innerHTML = '<span style="color:#22c55e;">✓ Connection test successful!</span>';
-                setTimeout(() => {
-                    document.getElementById('mongoStatus').innerHTML = '';
-                }, 3000);
-            }, 1000);
+        }
+
+        async function testBackendConnection() {
+            const url = getBackendUrl();
+            const deviceId = getDeviceId();
+            document.getElementById('backendStatus').innerHTML = '<span style="color:#3b82f6;">Testing connection to ' + url + '...</span>';
+            try {
+                const resp = await fetch(`${url}/api/mongo/stats/${deviceId}?hours=1`);
+                if (resp.ok) {
+                    const data = await resp.json();
+                    document.getElementById('backendStatus').innerHTML = '<span style="color:#22c55e;">✓ Connected! ' + (data.count || 0) + ' records found for ' + deviceId + '</span>';
+                } else {
+                    document.getElementById('backendStatus').innerHTML = '<span style="color:#ef4444;">✗ Server responded with status ' + resp.status + '</span>';
+                }
+            } catch (e) {
+                document.getElementById('backendStatus').innerHTML = '<span style="color:#ef4444;">✗ Cannot reach server: ' + e.message + '</span>';
+            }
+            setTimeout(() => { document.getElementById('backendStatus').innerHTML = ''; }, 5000);
+        }
+
+        function testMongoConnection() {
+            document.getElementById('mongoStatus').innerHTML = '<span style="color:#6b7280;">MongoDB is managed by the backend server. Use "Test Connection" above to verify.</span>';
+            setTimeout(() => { document.getElementById('mongoStatus').innerHTML = ''; }, 3000);
         }
 
         // ===== Recording Control Functions =====
@@ -1992,6 +2047,7 @@
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
             loadSettings();
+            loadBackendConfig();
             loadMongoConfig();
             
             // Initialize mobile menu
