@@ -1,0 +1,410 @@
+================================================================================
+  BATTERY MONITORING SYSTEM — PROJECT IMPROVEMENT PLAN
+  Date: February 28, 2026
+================================================================================
+
+Current System:
+  ESP32 + INA219 + LM35 → MQTT (HiveMQ) → Node.js Server → MongoDB Atlas
+  Web Dashboard (Netlify) ← MQTT direct + REST API
+
+================================================================================
+  1. ESP32 FIRMWARE IMPROVEMENTS
+================================================================================
+
+1.1  SoH Calculation is Static
+─────────────────────────────
+PROBLEM:  SoH = MEASURED_CAPACITY_mAh / BATTERY_CAPACITY_mAh = 810.81/4200 = 19.3%
+          This is a hardcoded constant. It never changes during runtime.
+FIX:      Implement cycle-based SoH tracking:
+          - Count full charge/discharge cycles
+          - Track actual delivered capacity per cycle
+          - SoH = (latest_cycle_capacity / original_rated_capacity) × 100
+          - Store cycle count + capacity in EEPROM/NVS so it persists across reboots
+
+1.2  SoC Drift (Coulomb Counting Only)
+──────────────────────────────────────
+PROBLEM:  Coulomb counting accumulates error over time. Current integration
+          drifts because of sensor noise, measurement intervals, and no
+          reference point correction.
+FIX:      Add voltage-based SoC correction:
+          - When current ≈ 0 for >30 seconds (rest state), use OCV-SoC lookup
+            table to recalibrate remaining_mAh
+          - When bus_V exceeds charge termination voltage → set SoC = 100%
+          - When bus_V drops below cutoff voltage → set SoC = 0%
+          - Combine: SoC_final = α × SoC_coulomb + (1-α) × SoC_voltage
+
+1.3  No Watchdog Timer
+─────────────────────
+PROBLEM:  If firmware hangs (I2C lockup, WiFi stack crash), ESP32 stays frozen.
+FIX:      Enable hardware watchdog:
+            esp_task_wdt_init(30, true);  // 30-second timeout, panic on expire
+            esp_task_wdt_add(NULL);       // monitor main task
+            // Call esp_task_wdt_reset() in loop()
+
+1.4  WiFi Reconnection Blocks Loop
+───────────────────────────────────
+PROBLEM:  wifi_connect() blocks for up to 15 seconds per SSID (3 SSIDs = 45s).
+          During this time, no sensor readings, no OLED updates.
+FIX:      Use non-blocking WiFi with state machine:
+          - State: IDLE → CONNECTING → CONNECTED → DISCONNECTED
+          - Check WiFi.status() each loop iteration
+          - Continue reading sensors and updating OLED even while connecting
+
+1.5  EEPROM Buffer is Small
+───────────────────────────
+PROBLEM:  4096 bytes EEPROM = ~100 samples at 40 bytes each. At 5s intervals,
+          that's only ~8 minutes of offline buffer.
+FIX:      Use SPIFFS or LittleFS instead:
+          - ESP32 has 1-4 MB flash for filesystem
+          - Can store hours of offline data
+          - Use circular file buffer with head/tail pointers
+
+1.6  No OTA (Over-The-Air) Updates
+──────────────────────────────────
+PROBLEM:  Updating firmware requires physical USB connection.
+FIX:      Add ArduinoOTA or HTTP OTA:
+            #include <ArduinoOTA.h>
+            ArduinoOTA.setHostname("battery-monitor-esp32");
+            ArduinoOTA.setPassword("update123");
+            ArduinoOTA.begin();
+            // Call ArduinoOTA.handle() in loop()
+
+1.7  No Deep Sleep for Battery Conservation
+───────────────────────────────────────────
+PROBLEM:  ESP32 draws ~120mA continuously. For battery-powered deployment
+          this drains the monitored battery quickly.
+FIX:      If monitoring interval allows (e.g., every 60s):
+          - Read sensors, publish MQTT, then esp_deep_sleep(interval_us)
+          - Wake on timer or external interrupt
+          - Reduces average current to ~10 µA between readings
+
+1.8  TLS Certificate Not Verified
+─────────────────────────────────
+PROBLEM:  secureClient.setInsecure() skips certificate validation.
+          Vulnerable to man-in-the-middle attacks.
+FIX:      Embed HiveMQ's root CA certificate:
+            const char* root_ca = "-----BEGIN CERTIFICATE-----\n...";
+            secureClient.setCACert(root_ca);
+
+1.9  Command Handling is Minimal
+────────────────────────────────
+PROBLEM:  ESP32 only responds to "TOGGLE" command on battery/recieve topic.
+          The web dashboard sends JSON commands but firmware ignores them.
+FIX:      Parse JSON commands:
+            StaticJsonDocument<256> doc;
+            deserializeJson(doc, payload, len);
+            String cmd = doc["command"];
+            if (cmd == "restart") ESP.restart();
+            if (cmd == "set_interval") PUBLISH_INTERVAL_MS = doc["value"];
+            if (cmd == "calibrate") { slope = doc["slope"]; offset = doc["offset"]; }
+            if (cmd == "status") mqtt_publishStatus();
+
+================================================================================
+  2. SERVER IMPROVEMENTS
+================================================================================
+
+2.1  Server Not Deployed (Local Only)
+─────────────────────────────────────
+PROBLEM:  server/index.js runs on local PC. When PC is off, no data is saved
+          to MongoDB, and the dashboard API endpoints are unreachable.
+FIX:      Deploy to a cloud platform:
+          - Railway.app (free tier, Node.js, auto-deploy from GitHub)
+          - Render.com (free tier with spin-down)
+          - Fly.io (free tier, always-on)
+          - Update CORS origins to include the new server URL
+          - Set environment variables (MONGO_URI, MQTT creds) on the platform
+
+2.2  No Authentication on API Endpoints
+───────────────────────────────────────
+PROBLEM:  Anyone can POST/DELETE data if they know the URL.
+          /api/mongo/readings/:deviceId (DELETE) can wipe all data.
+          /api/command/:deviceId can send commands to ESP32.
+FIX:      Add API key or JWT authentication:
+          - Require X-API-Key header on write/delete endpoints
+          - Store hashed API key in .env
+          - Or implement JWT with login endpoint
+          Example middleware:
+            function requireApiKey(req, res, next) {
+              if (req.headers['x-api-key'] !== process.env.API_KEY)
+                return res.status(401).json({ error: 'Unauthorized' });
+              next();
+            }
+
+2.3  No Rate Limiting
+────────────────────
+PROBLEM:  No protection against API abuse or accidental flooding.
+FIX:      Add express-rate-limit:
+            const rateLimit = require('express-rate-limit');
+            app.use('/api/', rateLimit({ windowMs: 60000, max: 100 }));
+
+2.4  Energy Calculation Assumes Fixed 5s Intervals
+──────────────────────────────────────────────────
+PROBLEM:  energy_kwh = sum(power) × 5 / 3600 / 1000
+          This assumes every reading is exactly 5 seconds apart.
+          If data is missing or irregular, energy is wrong.
+FIX:      Calculate using actual time deltas:
+            let energy_Wh = 0;
+            for (let i = 1; i < docs.length; i++) {
+              const dt_h = (docs[i].ts - docs[i-1].ts) / 3600000;
+              const avgPower = (powers[i] + powers[i-1]) / 2; // trapezoidal
+              energy_Wh += avgPower * dt_h;
+            }
+            const energy_kWh = energy_Wh / 1000;
+
+2.5  No Data Validation on Incoming MQTT Messages
+─────────────────────────────────────────────────
+PROBLEM:  Any JSON published to battery/data gets saved. A malformed or
+          spoofed message could corrupt the database.
+FIX:      Validate payload fields:
+          - bus_V should be 0-50 V (reasonable battery range)
+          - current_A should be -10 to +10 A
+          - temperature should be -20 to +80 °C
+          - Reject or flag readings outside these bounds
+
+2.6  MongoDB Queries Fetch All Documents Into Memory
+───────────────────────────────────────────────────
+PROBLEM:  30-day stats loads ALL documents with .toArray() then processes
+          in JavaScript. With months of data at 5s intervals, this is
+          ~500,000+ documents loaded into RAM.
+FIX:      Use MongoDB aggregation pipeline:
+            mongoCol.aggregate([
+              { $match: { device_id: deviceId, ts: { $gte: cutoff } } },
+              { $group: {
+                _id: null,
+                avgVoltage: { $avg: '$voltage' },
+                minVoltage: { $min: '$voltage' },
+                maxVoltage: { $max: '$voltage' },
+                count: { $sum: 1 }
+              }}
+            ])
+          This processes data on the MongoDB server, not in Node.js.
+
+2.7  SQLite is Redundant
+───────────────────────
+PROBLEM:  Data is saved to both SQLite and MongoDB. SQLite is never read
+          by the dashboard (all endpoints use MongoDB).
+FIX:      Either:
+          a) Remove SQLite entirely (simplify codebase)
+          b) Use SQLite as offline fallback when MongoDB is unreachable
+          c) Keep SQLite for local fast queries, MongoDB for cloud/analytics
+
+2.8  No Logging Framework
+────────────────────────
+PROBLEM:  Uses console.log/console.error only. No log levels, no log files.
+FIX:      Use winston or pino:
+            const logger = require('pino')();
+            logger.info('Server started');
+            logger.error({ err }, 'MongoDB failed');
+
+================================================================================
+  3. WEB DASHBOARD IMPROVEMENTS
+================================================================================
+
+3.1  Single 2300-line HTML File
+──────────────────────────────
+PROBLEM:  battery-monitor.html is a monolithic 2300+ line file mixing HTML,
+          CSS, and JavaScript. Extremely hard to maintain.
+FIX:      Split into modules:
+          - battery-monitor.html (structure only)
+          - css/battery-monitor.css (styles)
+          - js/battery-charts.js (Chart.js logic)
+          - js/battery-mqtt.js (MQTT connection + handlers)
+          - js/battery-analytics.js (30-day analysis)
+          - js/battery-settings.js (config management)
+
+3.2  No Error Boundaries on Charts
+──────────────────────────────────
+PROBLEM:  If Chart.js throws an error (e.g., canvas not ready), it silently
+          breaks all subsequent updates.
+FIX:      Wrap chart operations in try/catch:
+            try { vcChart.update('none'); } catch(e) { console.warn('Chart update failed', e); }
+
+3.3  Data History Limited to 50 Points
+─────────────────────────────────────
+PROBLEM:  dataHistory max = 50. At 5s intervals, only 4 minutes of live data.
+FIX:      Increase to 200-500 points, or make it configurable in Settings.
+          Also consider downsampling: keep every point for last 5 min,
+          then average to 1-min intervals for older data.
+
+3.4  No Alerts or Notifications
+──────────────────────────────
+PROBLEM:  No warning when voltage is critically low, temperature is too high,
+          or SoC drops below threshold.
+FIX:      Add configurable alert thresholds:
+          - Low voltage alert (e.g., < 3.0V)
+          - High temperature alert (e.g., > 45°C)
+          - Low SoC alert (e.g., < 20%)
+          - Visual alerts (flashing card border, toast notification)
+          - Optional: browser push notifications or email via server
+
+3.5  Charts Don't Auto-Scale Y-Axis Well
+────────────────────────────────────────
+PROBLEM:  Voltage (12V range) and current (0.5A range) on same chart
+          makes current nearly invisible.
+FIX:      Use dual Y-axes on the V&C chart (already done for comparison
+          chart, but not for the real-time V&C chart):
+            scales: {
+              y:  { type: 'linear', position: 'left',  title: 'Voltage (V)' },
+              y1: { type: 'linear', position: 'right', title: 'Current (A)' }
+            }
+
+3.6  No PWA / Offline Support
+─────────────────────────────
+PROBLEM:  Dashboard requires internet (CDN scripts, MQTT broker).
+FIX:      Make it a Progressive Web App:
+          - Add manifest.json
+          - Add service worker to cache assets
+          - Bundle Chart.js and mqtt.js locally instead of CDN
+          - Add "Install App" prompt for mobile users
+
+3.7  Mobile Layout Needs Work
+────────────────────────────
+PROBLEM:  Analytics tab's 1fr+320px grid breaks on small screens.
+          Stats cards overflow on narrow phones.
+FIX:      - Already has some @media queries, but needs more testing
+          - Comparison+Recording grid should be 1fr on mobile
+          - Make stat cards 1-column on phones (< 360px)
+
+3.8  No Dark/Light Theme Toggle
+──────────────────────────────
+PROBLEM:  Only dark theme available.
+FIX:      Add a theme toggle in Settings that swaps CSS variables:
+            :root { --bg: #0a0a0a; --card: #1a1a1a; --text: #f3f4f6; }
+            [data-theme="light"] { --bg: #f8fafc; --card: #fff; --text: #111; }
+
+================================================================================
+  4. DATA & ANALYTICS IMPROVEMENTS
+================================================================================
+
+4.1  No Anomaly Detection
+────────────────────────
+PROBLEM:  Spikes, dropouts, or sensor glitches are stored as-is.
+FIX:      Add server-side anomaly detection:
+          - Flag readings where |value - rolling_avg| > 3 × std_dev
+          - Store anomaly flag in MongoDB document
+          - Show anomalies as red dots on charts
+
+4.2  No Predictive Analytics
+───────────────────────────
+PROBLEM:  Dashboard only shows historical and live data, no predictions.
+FIX:      Add basic forecasting:
+          - Remaining runtime = (remaining_mAh / avg_current_mA) hours
+          - Time to full charge = (capacity - remaining) / charge_current
+          - Display on dashboard as "Estimated X hours remaining"
+
+4.3  No Data Compression for Long-Term Storage
+──────────────────────────────────────────────
+PROBLEM:  At 5s intervals, 30 days = ~518,400 documents. MongoDB M0 free
+          tier has 512 MB limit.
+FIX:      Implement data rollup:
+          - Keep raw 5s data for last 7 days
+          - Aggregate to 1-minute averages for 7-30 days
+          - Aggregate to hourly averages for 30+ days
+          - Run a daily cron job (node-cron) to compact old data
+
+4.4  CSV Export Missing Some Fields
+──────────────────────────────────
+PROBLEM:  Session CSV export only has: Timestamp, Voltage, Current, Power, Temperature
+          Missing: SoC, SoH, Uptime
+FIX:      Add all fields to downloadCSV():
+            csv = 'Timestamp_ms,Voltage,Current,Power,Temperature,SoC,SoH\n';
+            dataHistory.forEach(d => {
+              csv += `${d.ts},${d.voltage},${d.current},${d.power},${d.temperature},${d.soc},${d.soh}\n`;
+            });
+
+================================================================================
+  5. SECURITY IMPROVEMENTS
+================================================================================
+
+5.1  MQTT Credentials in Plain Text
+───────────────────────────────────
+PROBLEM:  Username "battery" and password "Batterybms80" are visible in:
+          - config.h (firmware, committed to GitHub)
+          - battery-monitor.html (JavaScript source, visible in browser)
+          - esp32-battery-view.html (same)
+FIX:      - NEVER commit credentials to public repos
+          - Use .gitignore for config files with secrets
+          - For browser: proxy MQTT through the server's WebSocket bridge
+            instead of connecting directly from browser to HiveMQ
+          - For firmware: use NVS (non-volatile storage) for credentials,
+            provision via BLE or serial at first boot
+
+5.2  MongoDB URI in .env (Good) but WiFi Passwords in config.h (Bad)
+───────────────────────────────────────────────────────────────────
+PROBLEM:  WiFi passwords are hardcoded in config.h which is in the repo.
+FIX:      Move to a separate credentials.h that is .gitignored:
+            // credentials.h (gitignored)
+            #define WIFI_SSID_1 "MiM"
+            #define WIFI_PASS_1 "Ha20202021"
+            #define MQTT_USER   "battery"
+            #define MQTT_PASS   "Batterybms80"
+
+5.3  No HTTPS on Local Server
+────────────────────────────
+PROBLEM:  Server runs on HTTP. If accessed over network, data is unencrypted.
+FIX:      When deployed to cloud (Railway, Render), HTTPS is automatic.
+          For local: use a reverse proxy (nginx) or self-signed cert with
+          the 'https' module.
+
+================================================================================
+  6. TESTING & RELIABILITY
+================================================================================
+
+6.1  No Unit Tests
+─────────────────
+PROBLEM:  Zero test coverage. Logic bugs discovered only by manual testing.
+FIX:      Add tests for critical functions:
+          - Server: test calcStats(), getNumbers(), null-safe Number conversion
+          - Use Jest or Mocha:
+              npm install --save-dev jest
+              // test/stats.test.js
+              test('calcStats handles empty array', () => {
+                expect(calcStats([])).toBeNull();
+              });
+
+6.2  No Health Monitoring for Server
+───────────────────────────────────
+PROBLEM:  If server crashes, nobody knows until dashboard stops working.
+FIX:      - Use PM2 for process management: pm2 start index.js --name battery
+          - Add UptimeRobot or similar to ping /api/health every 5 minutes
+          - Send email/Telegram alert if health check fails
+
+6.3  No CI/CD Pipeline
+─────────────────────
+PROBLEM:  Manual git push for every change. No automated checks.
+FIX:      Add GitHub Actions:
+          - Lint JavaScript (eslint)
+          - Run tests
+          - Auto-deploy to cloud hosting on push to main
+          - Validate HTML
+
+================================================================================
+  7. PRIORITY RANKING (What to do first)
+================================================================================
+
+  HIGH PRIORITY (do now):
+  ├── 2.1  Deploy server to cloud (Railway/Render) — unlocks 24/7 data collection
+  ├── 5.1  Remove credentials from public GitHub repos
+  ├── 1.9  Implement ESP32 command handling (restart, set_interval, calibrate)
+  ├── 2.4  Fix energy calculation (use actual time deltas)
+  └── 3.4  Add voltage/temperature alerts
+
+  MEDIUM PRIORITY (next sprint):
+  ├── 1.2  SoC drift correction (voltage-based recalibration)
+  ├── 1.1  Dynamic SoH tracking
+  ├── 2.6  MongoDB aggregation pipeline (performance)
+  ├── 3.1  Split HTML into modules
+  ├── 4.3  Data compression/rollup
+  └── 2.2  API authentication
+
+  LOW PRIORITY (future enhancement):
+  ├── 1.6  OTA firmware updates
+  ├── 1.7  Deep sleep mode
+  ├── 3.6  PWA / offline support
+  ├── 4.2  Predictive analytics
+  ├── 3.8  Dark/light theme toggle
+  └── 6.3  CI/CD pipeline
+
+================================================================================
+  END OF IMPROVEMENT PLAN
+================================================================================

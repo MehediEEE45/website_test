@@ -1,0 +1,424 @@
+================================================================================
+  BATTERY MONITORING SYSTEM — COMPLETE PROJECT OVERVIEW
+  Date: February 28, 2026
+================================================================================
+
+================================================================================
+  WHAT IS THIS PROJECT?
+================================================================================
+
+A comprehensive IoT system to monitor a battery's health in real-time using
+an ESP32 microcontroller, capturing voltage, current, power, temperature,
+state of charge (SoC), and state of health (SoH). The data flows through
+MQTT to a Node.js server, gets stored in MongoDB, and is visualized on
+a web dashboard.
+
+PURPOSE:
+  Monitor a 4200 mAh battery's performance across charging/discharging cycles.
+  Track degradation over time (SoH). Detect anomalies. Provide live and
+  historical analytics.
+
+USERS:
+  - Personal use: Monitor your battery, see charts, get alerts
+  - Research: Export data for analysis
+  - Maintenance: Check battery health before deployment
+
+================================================================================
+  SYSTEM ARCHITECTURE (4 Layers)
+================================================================================
+
+  LAYER 1: HARDWARE
+  ├─ ESP32-D0WD-V3 (dual-core 240MHz, 512KB RAM, 4MB Flash)
+  ├─ INA219 current/voltage sensor (I2C, GPIO4/5)
+  ├─ LM35 temperature sensor (GPIO32 analog)
+  ├─ OLED display (I2C, GPIO21/22) — shows live status
+  └─ 4200 mAh LiPo battery (device being monitored)
+
+  LAYER 2: COMMUNICATION (MQTT)
+  ├─ ESP32 publishes to:      battery/data (JSON payload every 5 seconds)
+  ├─ ESP32 subscribes to:     battery/recieve (command channel)
+  ├─ Server subscribes to:    battery/data + smartpower/+/data + energy/+/+/telemetry
+  ├─ Broker: HiveMQ Cloud (wss://0d34f5789e1e4a669367abfe5bd45b15.s1.eu.hivemq.cloud:8884/mqtt)
+  └─ Transport: WebSocket + TLS (secure)
+
+  LAYER 3: BACKEND SERVER
+  ├─ Express.js app (port 3000)
+  ├─ Receives MQTT messages, saves to:
+  │  ├─ SQLite (local cache)
+  │  └─ MongoDB Atlas (cloud, 30-day TTL, M0 free tier)
+  ├─ REST API with 15+ endpoints for stats, trends, export, CRUD, commands
+  ├─ WebSocket bridge to forward MQTT to web clients
+  └─ NOT DEPLOYED (runs on local Windows PC only) ⚠️
+
+  LAYER 4: WEB DASHBOARD
+  ├─ Single Page App: battery-monitor.html (2306 lines, 5 tabs)
+  ├─ Hosted on Netlify: https://power-monitor.netlify.app
+  ├─ Connects to:
+  │  ├─ MQTT (direct WebSocket)
+  │  ├─ Backend server (REST API)
+  │  └─ MongoDB (read stats, show trends)
+  ├─ 5 Tabs:
+  │  ├─ Realtime: Live 7 stat cards + 3 charts (V/C, Power, Temp)
+  │  ├─ History: Raw data table with configurable time range
+  │  ├─ Analytics: 7 summary cards + daily trends + comparison + live recording
+  │  ├─ Reports: Battery health report, cycle analysis
+  │  └─ Settings: MQTT config, backend URL, commands, data management
+  └─ Also available: esp32-battery-view.html (simple 1-page MQTT viewer)
+
+================================================================================
+  DATA FLOW DIAGRAM
+================================================================================
+
+  ESP32 Hardware                  MQTT Broker              Backend Server
+  ─────────────                  ───────────────          ──────────────
+  ┌──────────────┐               HiveMQ Cloud             ┌──────────────┐
+  │ INA219+LM35  │──publish──┐   ┌──────────────┐   ┌──→ │   Express    │
+  │ GPIO18+GPIO32│           └──→│battery/data  │───┘    │   (port 3000)│
+  └──────────────┘               └──────────────┘         └──────────────┘
+         ↓                               ↑                         ↓
+    Every 5 sec                    WebSocket+TLS           ✓ Parse message
+   JSON payload                    Publish every 5s        ✓ Validate data
+         │                               ↑                 ✓ Save SQLite
+         └───────────────────────────────┘                 ✓ Save MongoDB
+                                                                   ↓
+                                         Web Dashboard         MongoDB
+                                    (Netlify + JS)             Atlas
+                                         ↑                    (M0 free)
+                                         │                        ↓
+                                      REST API              Queries for
+                                    + WebSocket              Analytics
+                                         │                   30-day TTL
+                                    Fetch stats
+                                    + Charts
+
+================================================================================
+  KEY METRICS & DATA POINTS
+================================================================================
+
+  Voltage (V)           : Bus voltage (3.0V - 4.2V for LiPo)
+  Current (A)           : Charging positive, discharging negative (-10A to +10A)
+  Power (W)             : Calculated as voltage × current
+  Temperature (°C)      : LM35 sensor, -20°C to +80°C
+  State of Charge (%)   : 0-100%, calculated via Coulomb counting
+  State of Health (%)   : Current capacity / rated capacity (19.3% in system)
+  Uptime (ms)           : ESP32 uptime since boot
+
+  Collection Interval   : 5 seconds (200 samples/hour)
+  Storage Duration      : 30 days (30-day TTL in MongoDB)
+  Data Volume @ 30 days : ~518,400 documents (at 5s intervals)
+
+================================================================================
+  FILE STRUCTURE
+================================================================================
+
+  githubpage/
+  ├── esp32 code BMS(batter mangement system/
+  │   ├── src/
+  │   │   ├── main.cpp                  ← Main loop: read sensors, publish MQTT
+  │   │   ├── config.h                  ← All constants, pins, credentials ⚠️
+  │   │   ├── mqtt_manager.cpp          ← TLS MQTT connection & publish
+  │   │   ├── temperature.cpp           ← LM35 ADC reading & averaging
+  │   │   └── ina219_sensor.cpp         ← INA219 I2C & Coulomb counting
+  │   ├── platformio.ini                ← Build config
+  │   └── esp32_mqtt.ino                ← Original monolithic (deprecated)
+  │
+  ├── server/
+  │   ├── index.js                      ← Express server (696 lines)
+  │   ├── mqtt_to_csv.py                ← Python MQTT subscriber
+  │   ├── mqtt_to_mongo.py              ← Python MQTT to Mongo saver
+  │   ├── package.json                  ← Dependencies (express, mqtt, mongodb)
+  │   ├── README.md
+  │   └── .env                          ← Credentials (gitignored)
+  │
+  ├── public/
+  │   ├── battery-monitor.html          ← Main dashboard (2306 lines) ⚠️ MONOLITHIC
+  │   ├── esp32-battery-view.html       ← Simple MQTT viewer (241 lines)
+  │   ├── index.html                    ← Landing page
+  │   ├── admin.html, login.html, etc.  ← Other pages (not active)
+  │   └── js/
+  │       ├── mqtt-client.js            ← mqtt.js wrapper
+  │       ├── data-saver.js             ← Local storage management
+  │       └── auth.js                   ← Authentication logic
+  │
+  ├── extra html code/                  ← Backup reference files (user folder)
+  ├── netlify.toml                       ← Deploy config
+  ├── README.md
+  ├── mqtt_to_csv.ipynb                 ← Jupyter notebook for MQTT testing
+  └── PROJECT_IMPROVEMENTS.txt           ← Your feedback & suggestions
+
+================================================================================
+  CURRENT STATUS (Working Features)
+================================================================================
+
+  ✅ ESP32 Firmware
+     • Reads INA219 (voltage, current, power)
+     • Reads LM35 temperature sensor
+     • Calculates SoC via Coulomb counting
+     • Calculates SoH (currently static, 19.3%)
+     • Publishes JSON payload to MQTT every 5 seconds
+     • Catches offline data in EEPROM buffer
+     • Responds to "TOGGLE" command on battery/recieve topic
+     • Compiles clean (71.5% Flash, 14.3% RAM) on PlatformIO
+
+  ✅ MQTT Pipeline
+     • WebSocket + TLS connection to HiveMQ Cloud
+     • Publishes battery/data with all sensor values
+     • Subscribes to battery/recieve for commands
+     • Server receives all messages reliably
+     • No message loss observed in testing
+
+  ✅ MongoDB Storage
+     • 100+ documents verified in database
+     • Direct connection string working
+     • TTL index set to 30 days
+     • Contains all sensor data: voltage, current, power, temperature, SoC, SoH
+     • Data persists across server restarts
+
+  ✅ Web Dashboard (Netlify)
+     • Live real-time stat cards (7 metrics)
+     • Real-time charts: V&C, Power, Temperature (Chart.js)
+     • 30-day history tab showing raw data
+     • Analytics tab with daily trends (Chart.js line chart)
+     • Comparison chart (line + scatter from 30-day trends)
+     • Live recording panel (captures session data to CSV)
+     • Reports tab (battery health, SoH estimate)
+     • Settings tab (MQTT config, backend URL, data management, ESP32 commands)
+     • Responsive mobile layout (mostly working)
+     • Temperature summary card in Analytics
+     • Trend metric filter checkboxes (Voltage, Power, Temperature, SoC, Energy)
+
+  ✅ REST API (15+ endpoints)
+     • GET /api/status                           ← Server heartbeat
+     • GET /api/mongo/readings/:deviceId         ← Fetch all readings
+     • GET /api/mongo/readings/:deviceId?days=30 ← Time-filtered
+     • GET /api/mongo/stats/:deviceId            ← Hourly stats
+     • GET /api/mongo/stats-30day/:deviceId      ← 30-day daily stats
+     • GET /api/mongo/trends/:deviceId           ← Hourly trends
+     • GET /api/mongo/trends-30day/:deviceId     ← Daily trends
+     • GET /api/mongo/export/:deviceId           ← JSON export
+     • GET /api/csv/readings/:deviceId           ← CSV export (includes temperature)
+     • POST /api/mongo/readings                  ← Insert data
+     • POST /api/mongo/readings/bulk             ← Bulk sync
+     • DELETE /api/mongo/readings/:deviceId      ← Wipe all data
+     • DELETE /api/mongo/readings/:deviceId?days=N ← Delete old data
+     • POST /api/command/:deviceId               ← Send ESP32 command
+     • WebSocket /ws                             ← MQTT bridge
+
+  ✅ Recent Fixes (Commits)
+     • d0e9b3e: Null-element crash fix (missing HTML IDs crashed JS silently)
+     • 9e5bf6f: Changed all chart x-axes to elapsed time in seconds
+     • b03e55a: Fixed 7 logic errors (null handling, keyAlts, race conditions)
+     • 7f01c0f: Added temperature to analytics tab + trends filter checkboxes
+     • adcbba5: Removed orphaned code syntax errors
+
+================================================================================
+  KNOWN ISSUES & LIMITATIONS
+================================================================================
+
+  🔴 CRITICAL
+  ├─ Server not deployed (local PC only) — NO 24/7 data collection when PC is off ⚠️
+  ├─ Credentials in GitHub (config.h has WiFi/MQTT passwords) — security risk ⚠️
+  ├─ No API authentication — anyone with server URL can delete all data ⚠️
+  └─ ESH32 command handling minimal — only responds to "TOGGLE", ignores JSON commands
+
+  🟡 HIGH-PRIORITY BUGS
+  ├─ SoH is static (19.3%) — never changes during operation (not tracking cycles)
+  ├─ SoC drift — Coulomb counting has no voltage-based correction
+  ├─ Energy calculation assumes 5s intervals — broken for irregular data
+  ├─ No data validation on MQTT messages — any malformed JSON gets stored
+  └─ MongoDB fetches ALL documents into RAM — scales poorly with 30+ days of data
+
+  🟠 MEDIUM ISSUES
+  ├─ battery-monitor.html is 2300+ lines (monolithic) — hard to maintain
+  ├─ No alerts for low voltage/high temperature — silent failures
+  ├─ Data limited to 50 live points — only 4 minutes of data on chart
+  ├─ SQLite redundant — only MongoDB used, SQLite data never read
+  └─ No watchdog timer on ESP32 — can hang indefinitely
+
+  🟡 LOW-PRIORITY
+  ├─ No dark/light theme toggle
+  ├─ No OTA (Over-The-Air) firmware updates
+  ├─ No anomaly detection (sensor glitches stored as-is)
+  ├─ No PWA / offline support
+  └─ No unit tests or CI/CD pipeline
+
+================================================================================
+  FEEDBACK & IMPROVEMENTS PROVIDED (35+ items)
+================================================================================
+
+1. ESP32 FIRMWARE IMPROVEMENTS
+   • SoH calculation should be cycle-based, not static
+   • Add voltage-based SoC drift correction
+   • Enable hardware watchdog timer (prevent hangs)
+   • Use non-blocking WiFi state machine (don't block sensor loop)
+   • Switch from EEPROM to LittleFS (more storage for offline buffer)
+   • Add OTA (Over-The-Air) firmware update support
+   • Add deep sleep mode for battery-powered operation
+   • Verify TLS certificates, don't use setInsecure()
+   • Implement proper JSON command handling (restart, set_interval, calibrate)
+
+2. SERVER IMPROVEMENTS
+   • DEPLOY TO CLOUD immediately (Railway, Render, or Fly.io)
+   • Add API key or JWT authentication on write/delete endpoints
+   • Implement rate limiting (express-rate-limit)
+   • Fix energy calculation to use actual time deltas
+   • Add data validation on incoming MQTT (voltage/current/temp bounds)
+   • Use MongoDB aggregation pipeline instead of loading all data to RAM
+   • Remove or repurpose redundant SQLite storage
+   • Add logging framework (winston/pino) instead of console.log
+
+3. WEB DASHBOARD IMPROVEMENTS
+   • Split 2300-line battery-monitor.html into modules (HTML, CSS, JS)
+   • Add error boundaries on Chart.js operations
+   • Increase data history from 50 to 200+ points (or make configurable)
+   • Add configurable alert thresholds (low voltage, high temp, low SoC)
+   • Fix real-time V&C chart with dual Y-axes (same as comparison chart)
+   • Make it a PWA with offline support (service worker, manifest.json)
+   • Improve mobile layout (<360px responsive design)
+   • Add theme toggle (dark/light mode with CSS variables)
+
+4. DATA & ANALYTICS
+   • Add anomaly detection (flag outliers beyond 3σ from mean)
+   • Implement predictive analytics (remaining runtime estimate)
+   • Compress/rollup old data (7-day raw, 30-day 1-min avg, 30+ hourly avg)
+   • Ensure CSV export includes all fields (SoC, SoH, Uptime missing)
+
+5. SECURITY
+   • Remove hardcoded credentials from GitHub (use .gitignore)
+   • Create separate credentials.h for WiFi/MQTT passwords
+   • Proxy MQTT through server WebSocket instead of direct browser connect
+   • Use proper HTTPS when deployed (auto on Netlify, Railway, Render)
+
+6. TESTING & RELIABILITY
+   • Add unit tests (Jest/Mocha) for critical functions
+   • Implement health monitoring (UptimeRobot pings)
+   • Set up CI/CD pipeline (GitHub Actions: lint, test, auto-deploy)
+
+================================================================================
+  RECOMMENDED PRIORITY ROADMAP
+================================================================================
+
+  🚀 HIGH (Do First — These unlock major features)
+  ├── Deploy server to Railway/Render (enables 24/7 data collection)
+  ├── Remove credentials from GitHub repos (security fix)
+  ├── Implement ESP32 JSON command handler (restart, calibrate, etc.)
+  ├── Fix energy calculation (actual time deltas, not assumed 5s)
+  └── Add voltage/temperature alert notifications
+
+  📋 MEDIUM (After High Priority)
+  ├── Add SoC voltage-based correction (reduce drift)
+  ├── Implement dynamic SoH tracking (cycle counting)
+  ├── Optimize MongoDB queries (aggregation pipeline)
+  ├── Modularize battery-monitor.html (split into CSS/JS files)
+  ├── Implement data rollup (compress old readings)
+  └── Add API authentication
+
+  ⭐ LOW (Nice-to-Have Features)
+  ├── OTA firmware updates
+  ├── Deep sleep mode
+  ├── PWA / offline support
+  ├── Anomaly detection
+  ├── Predictive analytics (remaining runtime)
+  ├── Dark/light theme toggle
+  └── CI/CD with GitHub Actions
+
+================================================================================
+  NEXT STEPS (Get Started)
+================================================================================
+
+  1. Deploy Server to Cloud
+     • Sign up to Railway.app or Render.com (free tier)
+     • Connect your GitHub repo
+     • Set environment variables: MONGO_URI, MQTT_URL, USERNAME, PASSWORD
+     • Copy new server URL to battery-monitor.html Settings tab
+     • Test API endpoints: curl https://new-server.railway.app/api/status
+
+  2. Fix Credentials
+     • Create: esp32 code BMS/src/credentials.h (gitignored)
+     • Move WiFi/MQTT passwords there
+     • Update config.h to #include "credentials.h"
+     • Add to .gitignore: esp32 code BMS/src/credentials.h
+     • Remove from GitHub: git rm --cached config.h (keeps local copy)
+
+  3. Test JSON Commands
+     • Modify ESP32 mqtt_manager.cpp to parse battery/recieve as JSON
+     • Add handlers for: restart, set_interval, calibrate, get_status
+     • Publish test command from battery-monitor.html Settings → ESP32 Commands
+     • Verify OLED shows command received + executed
+
+  4. Add Energy Fix
+     • Edit server/index.js getNumbers() function (line ~430)
+     • Replace fixed 5s interval with actual (ts[i] - ts[i-1]) milliseconds
+     • Test with irregular data: should still calculate correct energy
+
+  5. Add Alert System
+     • Edit battery-monitor.html updateUI() function
+     • Check if voltage < 3.0V → flash red, show toast: "Low Battery!"
+     • Check if temperature > 45°C → flash orange, show toast: "High Temp!"
+     • Check if SoC < 20% → flash yellow, show toast: "Low SoC!"
+
+================================================================================
+  TECHNICAL SPECIFICATIONS (Reference)
+================================================================================
+
+  Hardware:
+    • MCU: ESP32-D0WD-V3 (Espressif 32 v6.12.0, 240MHz Dual-Core)
+    • Sensor 1: INA219 (I2C, 3.3V logic, 26V max, ±3.2A)
+    • Sensor 2: LM35 (analog 0-100mV → 0-100°C @ 10mV/°C)
+    • Comms: WiFi 802.11 b/g/n + TLS WebSocket to MQTT broker
+    • Storage: 512KB SRAM + 4MB Flash + 4KB EEPROM (currently used for buffer)
+    • Build: 71.5% Flash used, 14.3% SRAM used
+
+  MQTT:
+    • Broker: HiveMQ Cloud (wss://0d34f5789e1e4a669367abfe5bd45b15.s1.eu.hivemq.cloud:8884/mqtt)
+    • Protocol: MQTT 3.1.1 over WebSocket + TLS
+    • Auth: User "battery", Pass "Batterybms80"
+    • Topics:
+        - battery/data (ESP32 publish, 5s interval)
+        - battery/recieve (ESP32 subscribe for commands)
+        - smartpower/+/data (server subscribe)
+        - energy/+/+/telemetry (server subscribe)
+
+  Backend:
+    • Runtime: Node.js 14+ (express@~4.18.2, mqtt@^4.3.7, mongodb@^5.9.2)
+    • Database: MongoDB Atlas M0 (free tier, 512MB limit, 30-day TTL)
+    • Port: 3000
+    • Transport: HTTP REST + WebSocket
+    • Deployed: ❌ Not yet (runs locally)
+
+  Frontend:
+    • Framework: Plain HTML5 + Chart.js (CDN) + mqtt.js v5.10.1 (callbacks-based)
+    • Hosting: Netlify (https://power-monitor.netlify.app)
+    • Responsive: Mobile-optimized with @media queries
+    • Browsers: All modern (Chrome, Firefox, Safari, Edge)
+
+  Credentials Summary:
+    • MongoDB: mongodb://Mehedi:Mehedi1076@ac-85hs35c-shard-00-XX.ldh2md6.mongodb.net:27017
+    • MQTT HiveMQ: battery / Batterybms80
+    • WiFi: MiM / Ha20202021 (stored in config.h)
+    • GitHub Remotes:
+        - origin: MehediEEE45/renewable.git
+        - website_test: MehediEEE45/website_test.git
+
+================================================================================
+  QUICK START (For New Users)
+================================================================================
+
+  1. Visit Dashboard: https://power-monitor.netlify.app
+  2. Real-time View: Plug in ESP32, go to Realtime tab → see live charts
+  3. Settings Tab:
+     - Set MQTT Broker config if different
+     - Enter Backend URL if using cloud server
+     - Send commands to ESP32
+  4. Analytics Tab: View 30-day trends, export data
+  5. Reports Tab: See battery health summary
+
+  For Local Development:
+    • Clone: git clone https://github.com/MehediEEE45/renewable.git
+    • ESP32: cd "esp32 code BMS(batter mangement system" && platformio upload
+    • Server: cd server && npm install && node index.js
+    • Frontend: cd public && serve -s . (or open index.html in browser)
+
+================================================================================
+  END OF PROJECT OVERVIEW
+================================================================================

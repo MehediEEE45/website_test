@@ -54,8 +54,6 @@ static const unsigned long WIFI_TIMEOUT_MS = 15000;  // per SSID
 #define BUTTON_PIN    25
 
 // ───── Charge Relay ─────
-// GPIO26: drives relay module IN pin
-// Most relay modules activate on LOW → RELAY_ACTIVE_LEVEL = LOW
 #define RELAY_PIN           26
 #define RELAY_ACTIVE_LEVEL  LOW    // LOW = energise coil = circuit closed
 
