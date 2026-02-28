@@ -22,7 +22,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
-    <script src="https://unpkg.com/mqtt@5.3.4/dist/mqtt.min.js"></script>
+    <script src="https://unpkg.com/mqtt@4.3.8/dist/mqtt.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -1103,7 +1103,9 @@
                     clientId: clientId,
                     username: CONFIG.username,
                     password: CONFIG.password,
+                    protocolVersion: 4,
                     keepalive: 60,
+                    reconnectPeriod: 5000,
                     clean: true
                 });
 
@@ -1111,8 +1113,12 @@
                     console.log('[MQTT] Connected to', CONFIG.broker);
                     setStatus(true);
                     document.getElementById('statusSubtext').textContent = 'Subscribed to ' + CONFIG.topic;
-                    mqttClient.subscribe(CONFIG.topic, { qos: 1 }, (err) => {
-                        if (err) console.warn('[MQTT] Subscribe error:', err);
+                    mqttClient.subscribe(CONFIG.topic, { qos: 0 }, (err, granted) => {
+                        if (err) {
+                            console.error('[MQTT] Subscribe error:', err);
+                        } else {
+                            console.log('[MQTT] Subscribed OK:', granted);
+                        }
                     });
                 });
 

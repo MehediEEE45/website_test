@@ -74,7 +74,7 @@
     <p style="color:#9ca3af;font-size:13px">This page subscribes to the <code>battery/data</code> topic (default) and displays latest values from the ESP32. Click the button above to load historical data from MongoDB.</p>
   </div>
 
-  <script src="https://unpkg.com/mqtt@5.3.4/dist/mqtt.min.js"></script>
+  <script src="https://unpkg.com/mqtt@4.3.8/dist/mqtt.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
   <script>
     // Broker defaults (match project HiveMQ config)
@@ -178,12 +178,13 @@
 
     // Connect to MQTT for live data
     const clientId = 'esp-view-' + Math.random().toString(16).slice(2,8);
-    const client = mqtt.connect(BROKER, { clientId, username: USER, password: PASS, keepalive: 60, clean: true });
+    const client = mqtt.connect(BROKER, { clientId, username: USER, password: PASS, protocolVersion: 4, keepalive: 60, reconnectPeriod: 5000, clean: true });
 
     client.on('connect', () => {
       setStatus(true);
-      client.subscribe(TOPIC, { qos: 1 }, (err) => {
-        if(err) console.warn('subscribe err', err);
+      client.subscribe(TOPIC, { qos: 0 }, (err, granted) => {
+        if(err) console.error('subscribe err', err);
+        else console.log('Subscribed OK:', granted);
       });
     });
 

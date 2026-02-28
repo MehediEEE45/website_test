@@ -102,6 +102,7 @@ const MQTT_CLIENT = {
             const options = {
                 clientId: this.config.clientId,
                 keepalive: this.config.keepalive,
+                protocolVersion: 4,
                 reconnectPeriod: this.config.reconnectPeriod,
                 connectTimeout: this.config.connectTimeout,
                 clean: this.config.clean
@@ -121,7 +122,7 @@ const MQTT_CLIENT = {
                 
                 // Resubscribe to all topics
                 this.subscriptions.forEach((callbacks, topic) => {
-                    this.client.subscribe(topic, { qos: 1 }, (err) => {
+                    this.client.subscribe(topic, { qos: 0 }, (err) => {
                         if (err) console.error('[MQTT] Resubscribe error:', topic, err);
                         else console.log('[MQTT] Resubscribed to:', topic);
                     });
@@ -174,7 +175,7 @@ const MQTT_CLIENT = {
     },
 
     // Subscribe to a topic
-    subscribe(topic, callback = null, qos = 1) {
+    subscribe(topic, callback = null, qos = 0) {
         if (!this.subscriptions.has(topic)) {
             this.subscriptions.set(topic, []);
         }
