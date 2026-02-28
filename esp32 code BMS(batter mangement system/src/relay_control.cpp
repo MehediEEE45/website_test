@@ -6,8 +6,12 @@
 #include <Arduino.h>
 
 // ── Private state ──────────────────────────────────────────────
-static RelayState       currentState  = RELAY_OPEN;   // safe default
-static RelayCutoffReason cutoffReason = REASON_NONE;
+static RelayState        currentState  = RELAY_OPEN;   // safe default
+static RelayCutoffReason cutoffReason  = REASON_NONE;
+
+// ── AH accumulator ─────────────────────────────────────────────
+static float    accum_Ah       = 0.0f;   // total Ah consumed
+static uint32_t lastAhTime_ms  = 0;      // timestamp of last integration step
 
 // ── Helpers ────────────────────────────────────────────────────
 static void applyState(RelayState s) {
@@ -43,12 +47,26 @@ const char* relay_getReasonStr() {
         case REASON_OVERVOLTAGE: return "Over-voltage";
         case REASON_OVERTEMP:    return "Over-temp";
         case REASON_MANUAL:      return "Manual";
+        case REASON_AH_LIMIT:    return "AH limit";
         default:                 return "None";
     }
 }
 
+float relay_getAhUsed()  { return accum_Ah; }
+void  relay_resetAh()    { accum_Ah = 0.0f; lastAhTime_ms = 0; Serial.println("[Relay] AH counter reset"); }
+
 // ── Threshold evaluation  ──────────────────────────────────────
 void relay_checkThresholds(const SampleRecord& rec, float tempC) {
+
+    // ── AH integration (Coulomb counting) ──────────────────────
+    // Accumulate |I| × dt regardless of relay / manual state
+    uint32_t now_ms = millis();
+    if (lastAhTime_ms > 0 && rec.current_A != 0.0f) {
+        float dt_h  = (now_ms - lastAhTime_ms) / 3600000.0f;  // ms → hours
+        accum_Ah   += fabsf(rec.current_A) * dt_h;
+    }
+    lastAhTime_ms = now_ms;
+
     // ── Cut-off conditions (open relay = stop charging) ────────
     if (rec.soc_percent >= RELAY_CUTOFF_SOC_PERCENT && rec.soc_percent > 0) {
         relay_set(RELAY_OPEN, REASON_SOC_FULL);
@@ -60,6 +78,16 @@ void relay_checkThresholds(const SampleRecord& rec, float tempC) {
     }
     if (tempC >= RELAY_CUTOFF_TEMP_C && tempC > 0) {
         relay_set(RELAY_OPEN, REASON_OVERTEMP);
+        return;
+    }
+
+    // ── AH limit cut-off ───────────────────────────────────────
+    // Open relay when consumed AH ≥ 50 % of rated capacity
+    const float cutoffAh = (RELAY_CUTOFF_AH_PERCENT / 100.0f) * BATTERY_RATED_AH;
+    if (accum_Ah >= cutoffAh) {
+        relay_set(RELAY_OPEN, REASON_AH_LIMIT);
+        Serial.printf("[Relay] AH limit reached: %.3f Ah / %.3f Ah (%.0f%%)\n",
+                      accum_Ah, cutoffAh, RELAY_CUTOFF_AH_PERCENT);
         return;
     }
 

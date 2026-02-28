@@ -36,7 +36,8 @@ enum RelayCutoffReason {
     REASON_SOC_FULL    = 1,
     REASON_OVERVOLTAGE = 2,
     REASON_OVERTEMP    = 3,
-    REASON_MANUAL      = 4
+    REASON_MANUAL      = 4,
+    REASON_AH_LIMIT    = 5   // consumed AH reached 50 % of rated capacity
 };
 
 /// Initialise relay GPIO. Sets safe default (open = no charge).
@@ -57,3 +58,9 @@ const char* relay_getReasonStr();
 /// Evaluate thresholds and auto-open/close relay.
 /// Call this inside SensorTask after every reading.
 void relay_checkThresholds(const SampleRecord& rec, float tempC);
+
+/// Get accumulated Amp-Hours consumed since last reset.
+float relay_getAhUsed();
+
+/// Reset AH counter to zero (e.g. after battery change or full charge).
+void relay_resetAh();

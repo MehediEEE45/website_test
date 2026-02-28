@@ -40,6 +40,7 @@ struct SharedSensorData {
     uint32_t     failCount;
     RelayState   relayState;     // current relay position
     const char*  relayReason;    // last cut-off reason string
+    float        ahUsed;         // accumulated Amp-Hours consumed
 };
 static SharedSensorData shared = {};
 
@@ -79,12 +80,15 @@ void sensorTask(void* pvParam) {
             shared.sensorReadCount++;
             shared.relayState  = relay_getState();
             shared.relayReason = relay_getReasonStr();
+            shared.ahUsed      = relay_getAhUsed();
             xSemaphoreGive(xSensorMutex);
         }
 
-        Serial.printf("[Sensor] V=%.3f I=%.3f P=%.3f T=%.2f SoC=%.1f%%  Relay:%s  (#%u)\n",
+        Serial.printf("[Sensor] V=%.3f I=%.3f P=%.3f T=%.2f SoC=%.1f%%  AH=%.4f/%.2f  Relay:%s  (#%u)\n",
                        rec.bus_V, rec.current_A, rec.power_W, tempC,
                        rec.soc_percent,
+                       relay_getAhUsed(),
+                       (RELAY_CUTOFF_AH_PERCENT / 100.0f) * BATTERY_RATED_AH,
                        relay_getState() == RELAY_CLOSED ? "ON" : "OFF",
                        shared.sensorReadCount);
 

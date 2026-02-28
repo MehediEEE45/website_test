@@ -75,6 +75,12 @@ static const unsigned long WIFI_TIMEOUT_MS = 15000;  // per SSID
 // Measured capacity from 3000 mWh @ 3.7 V → ~810.81 mAh
 #define MEASURED_CAPACITY_mAh   810.81f
 
+// ───── AH counting (discharge protection) ─────
+// Rated capacity in Amp-Hours (= BATTERY_CAPACITY_mAh / 1000)
+#define BATTERY_RATED_AH           4.2f    // Ah
+// Relay opens when consumed AH reaches this % of rated capacity
+#define RELAY_CUTOFF_AH_PERCENT   50.0f    // disconnect at 50 % DoD
+
 // ───── Timing ─────
 #define PUBLISH_INTERVAL_MS     5000
 #define DISPLAY_INTERVAL_MS     1000

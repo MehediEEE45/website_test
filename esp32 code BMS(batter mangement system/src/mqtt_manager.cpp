@@ -54,6 +54,11 @@ static void onMessage(char* topic, byte* payload, unsigned int len) {
         }
         Serial.println("[MQTT] Command: relay returned to auto mode");
     }
+    // ── AH counter reset ──────────────────────────────────────
+    else if (strcmp(cmd, "reset_ah") == 0) {
+        relay_resetAh();
+        Serial.println("[MQTT] Command: AH counter reset");
+    }
     // ── LED command ───────────────────────────────────────────
     else if (strcmp(cmd, "led_toggle") == 0) {
         digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
@@ -101,7 +106,7 @@ void mqtt_loop() {
 
 bool mqtt_publishSample(const SampleRecord& rec, float temperature) {
     if (!client.connected()) return false;
-    char buf[350];
+    char buf[420];
     snprintf(buf, sizeof(buf),
         "{\"uptime_ms\":%u,"
          "\"bus_V\":%.3f,"
@@ -111,6 +116,9 @@ bool mqtt_publishSample(const SampleRecord& rec, float temperature) {
          "\"temperature\":%.2f,"
          "\"soc_percent\":%.2f,"
          "\"soh_percent\":%.2f,"
+         "\"ah_used\":%.4f,"
+         "\"ah_rated\":%.2f,"
+         "\"ah_percent\":%.1f,"
          "\"relay\":%d,"
          "\"relay_reason\":\"%s\"}",
         (unsigned)rec.uptime_ms,
@@ -118,7 +126,10 @@ bool mqtt_publishSample(const SampleRecord& rec, float temperature) {
         rec.current_A, rec.power_W,
         temperature,
         rec.soc_percent, rec.soh_percent,
-        (int)relay_getState(),       // 0=closed(charging), 1=open(stopped)
+        relay_getAhUsed(),
+        (float)BATTERY_RATED_AH,
+        (relay_getAhUsed() / BATTERY_RATED_AH) * 100.0f,
+        (int)relay_getState(),
         relay_getReasonStr());
     return client.publish(PUB_TOPIC, buf);
 }
