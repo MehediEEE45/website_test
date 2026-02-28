@@ -118,10 +118,15 @@ client.on('message', async (topic, message) => {
   const raw = message.toString();
   try { payload = JSON.parse(raw); } catch { payload = raw; }
 
-  // Extract device id from topic if present (energy/{type}/{deviceId}/telemetry)
+  // Extract device id from topic
   const parts = topic.split('/');
   let deviceId = topic;
-  if (parts.length >= 3) deviceId = `${parts[1]}_${parts[2]}`;
+  if (parts[0] === 'battery') {
+    // ESP32 BMS publishes to battery/data
+    deviceId = 'battery_esp32_1';
+  } else if (parts.length >= 3) {
+    deviceId = `${parts[1]}_${parts[2]}`;
+  }
 
   // Basic validation and normalization
   const doc = {
@@ -133,10 +138,12 @@ client.on('message', async (topic, message) => {
 
   if (payload && typeof payload === 'object') {
     doc.device_id = payload.device_id || deviceId;
-    doc.voltage = Number(payload.voltage ?? payload.bus_V ?? payload.v ?? null) ?? null;
-    doc.current = Number(payload.current ?? payload.current_A ?? payload.i ?? null) ?? null;
-    doc.power = Number(payload.power ?? payload.power_W ?? null) ?? null;
-    doc.timestamp = payload.timestamp ?? payload.ts ?? null;
+    doc.voltage = Number(payload.bus_V ?? payload.voltage ?? null) ?? null;
+    doc.current = Number(payload.current_A ?? payload.current ?? null) ?? null;
+    doc.power = Number(payload.power_W ?? payload.power ?? null) ?? null;
+    doc.temperature = Number(payload.temperature ?? null) ?? null;
+    doc.soc_percent = Number(payload.soc_percent ?? null) ?? null;
+    doc.soh_percent = Number(payload.soh_percent ?? null) ?? null;
     doc.uptime_ms = payload.uptime_ms ?? null;
     doc.payload = payload;
   } else {
@@ -272,6 +279,7 @@ app.get('/api/mongo/stats/:deviceId', async (req, res) => {
       voltage: calcStats(getNumbers('bus_V')),
       current: calcStats(getNumbers('current_A')),
       power: calcStats(getNumbers('power_W')),
+      temperature: calcStats(getNumbers('temperature')),
       soc: calcStats(getNumbers('soc_percent')),
       soh: calcStats(getNumbers('soh_percent')),
       ts_range: { from: docs[0].ts, to: docs[docs.length - 1].ts }
@@ -337,6 +345,7 @@ app.get('/api/mongo/stats/30days/:deviceId', async (req, res) => {
     const voltages = getNumbers('bus_V');
     const currents = getNumbers('current_A');
     const powers = getNumbers('power_W');
+    const temperatures = getNumbers('temperature');
     const socs = getNumbers('soc_percent');
     const sohs = getNumbers('soh_percent');
     
@@ -352,6 +361,7 @@ app.get('/api/mongo/stats/30days/:deviceId', async (req, res) => {
         voltage: calcStats(voltages),
         current: calcStats(currents),
         power: calcStats(powers),
+        temperature: calcStats(temperatures),
         energy_kwh: energyKwh,
         soc: calcStats(socs),
         soh: calcStats(sohs)
@@ -389,6 +399,7 @@ app.get('/api/mongo/trends/30days/:deviceId', async (req, res) => {
       const voltages = dayDocs.map(d => d.payload?.bus_V).filter(v => v !== null && v !== undefined);
       const currents = dayDocs.map(d => d.payload?.current_A).filter(v => v !== null && v !== undefined);
       const powers = dayDocs.map(d => d.payload?.power_W).filter(v => v !== null && v !== undefined);
+      const temperatures = dayDocs.map(d => d.payload?.temperature).filter(v => v !== null && v !== undefined);
       const socs = dayDocs.map(d => d.payload?.soc_percent).filter(v => v !== null && v !== undefined);
       
       const avg = (arr) => arr.length ? (arr.reduce((a,b) => a+b, 0) / arr.length).toFixed(2) : null;
@@ -400,6 +411,7 @@ app.get('/api/mongo/trends/30days/:deviceId', async (req, res) => {
         voltage_avg: avg(voltages),
         current_avg: avg(currents),
         power_avg: avg(powers),
+        temperature_avg: avg(temperatures),
         energy_kwh: energyKwh,
         soc_avg: avg(socs)
       };
@@ -427,17 +439,18 @@ app.get('/api/mongo/export/csv/:deviceId', async (req, res) => {
     if (docs.length === 0) return res.status(404).json({ error: 'No data found' });
 
     // Create CSV
-    let csv = 'Timestamp,Date,Voltage (V),Current (A),Power (W),SoC (%),SoH (%),Uptime (ms)\n';
+    let csv = 'Timestamp,Date,Voltage (V),Current (A),Power (W),Temperature (C),SoC (%),SoH (%),Uptime (ms)\n';
     docs.forEach(doc => {
       const p = doc.payload || {};
       const date = new Date(doc.ts);
       const voltage = p.bus_V ?? p.voltage ?? '';
       const current = p.current_A ?? p.current ?? '';
       const power = p.power_W ?? p.power ?? '';
+      const temperature = p.temperature ?? '';
       const soc = p.soc_percent ?? '';
       const soh = p.soh_percent ?? '';
       const uptime = p.uptime_ms ?? '';
-      csv += `${doc.ts},"${date.toISOString()}",${voltage},${current},${power},${soc},${soh},${uptime}\n`;
+      csv += `${doc.ts},"${date.toISOString()}",${voltage},${current},${power},${temperature},${soc},${soh},${uptime}\n`;
     });
 
     res.setHeader('Content-Type', 'text/csv');
