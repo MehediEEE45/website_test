@@ -18,7 +18,7 @@
 
 // LM35 2-point calibration: temp = SLOPE * raw + OFFSET
 #define LM35_SLOPE_DEFAULT   1.03f
-#define LM35_OFFSET_DEFAULT -10.0f   // °C
+#define LM35_OFFSET_DEFAULT -5.0f   // °C
 
 // ───── WiFi (tried in order) ─────
 struct WifiCred { const char* ssid; const char* password; };
@@ -61,6 +61,33 @@ static const unsigned long WIFI_TIMEOUT_MS = 15000;  // per SSID
 
 // ───── Timing ─────
 #define PUBLISH_INTERVAL_MS     5000
+#define DISPLAY_INTERVAL_MS     1000
+#define WATCHDOG_INTERVAL_MS    10000
+#define WIFI_CHECK_INTERVAL_MS  5000
+
+// ───── FreeRTOS Task Configuration ─────
+// Core assignments (ESP32 has Core 0 and Core 1)
+// Core 0: WiFi/BT stack runs here – network tasks go here
+// Core 1: Arduino loop() core – sensor + display tasks go here
+#define TASK_SENSOR_CORE        1
+#define TASK_NETWORK_CORE       0
+#define TASK_DISPLAY_CORE       1
+#define TASK_WATCHDOG_CORE      0
+
+// Task priorities (higher = more important, max ~24)
+#define TASK_SENSOR_PRIORITY    3
+#define TASK_NETWORK_PRIORITY   2
+#define TASK_DISPLAY_PRIORITY   1
+#define TASK_WATCHDOG_PRIORITY  1
+
+// Stack sizes (bytes)
+#define TASK_SENSOR_STACK       4096
+#define TASK_NETWORK_STACK      8192   // needs room for TLS
+#define TASK_DISPLAY_STACK      4096
+#define TASK_WATCHDOG_STACK     2048
+
+// Hardware watchdog timeout (seconds)
+#define WDT_TIMEOUT_SEC         30
 
 // ───── EEPROM Buffering ─────
 #define EEPROM_TOTAL_SIZE       4096

@@ -24,7 +24,7 @@ float temp_readCelsius() {
     uint32_t sum = 0;
     for (int i = 0; i < ADC_SAMPLES; i++) {
         sum += analogRead(LM35_PIN);
-        delay(5);
+        vTaskDelay(pdMS_TO_TICKS(5));  // FreeRTOS-friendly delay
     }
     uint32_t raw  = sum / ADC_SAMPLES;
     uint32_t mv   = esp_adc_cal_raw_to_voltage(raw, &adc_chars);

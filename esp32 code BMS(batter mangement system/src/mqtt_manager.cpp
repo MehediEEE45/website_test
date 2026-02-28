@@ -91,6 +91,6 @@ void mqtt_flushBuffer() {
             r.current_A, r.power_W,
             r.soc_percent, r.soh_percent);
         if (!client.publish(PUB_TOPIC, buf)) return;
-        delay(20);
+        vTaskDelay(pdMS_TO_TICKS(20));  // FreeRTOS-friendly delay
     }
 }
