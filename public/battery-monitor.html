@@ -1733,15 +1733,6 @@
             };
             updateTrendsChart(lastTrendsData, filter);
         }
-                    scales: {
-                        y: { type: 'linear', position: 'left', ticks: { color: '#6b7280' }, grid: { color: '#2a2a2a' }, title: { display: true, text: 'Voltage (V)' } },
-                        y1: { type: 'linear', position: 'right', ticks: { color: '#6b7280' }, grid: { drawOnChartArea: false }, title: { display: true, text: 'Power (W)' } },
-                        y2: { type: 'linear', position: 'right', ticks: { color: '#6b7280' }, grid: { drawOnChartArea: false }, offset: true, title: { display: true, text: 'Energy (kWh)' } },
-                        x: { ticks: { color: '#6b7280', maxTicksLimit: 10 }, grid: { color: '#2a2a2a' } }
-                    }
-                }
-            });
-        }
 
         // Update comparison chart with user-selected metrics vs time
         function updateComparisonChart() {
