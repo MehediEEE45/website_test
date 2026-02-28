@@ -1175,17 +1175,15 @@
             const settingsStatus = document.getElementById('settingsStatus');
 
             if (connected) {
-                indicator.className = 'status-indicator status-online';
-                text.textContent = 'Connected';
-                text.style.color = '#10b981';
-                connText.textContent = 'Connected';
-                settingsStatus.textContent = 'Connected';
+                if (indicator) indicator.className = 'status-indicator status-online';
+                if (text) { text.textContent = 'Connected'; text.style.color = '#10b981'; }
+                if (connText) connText.textContent = 'Connected';
+                if (settingsStatus) settingsStatus.textContent = 'Connected';
             } else {
-                indicator.className = 'status-indicator status-offline';
-                text.textContent = 'Disconnected';
-                text.style.color = '#ef4444';
-                connText.textContent = 'Disconnected';
-                settingsStatus.textContent = 'Disconnected';
+                if (indicator) indicator.className = 'status-indicator status-offline';
+                if (text) { text.textContent = 'Disconnected'; text.style.color = '#ef4444'; }
+                if (connText) connText.textContent = 'Disconnected';
+                if (settingsStatus) settingsStatus.textContent = 'Disconnected';
             }
         }
 
@@ -1238,11 +1236,11 @@
 
                 mqttClient.on('message', (topic, message) => {
                     messageCount++;
-                    document.getElementById('diagMsgCount').textContent = messageCount;
-                    document.getElementById('totalMessages').textContent = messageCount;
-                    document.getElementById('diagTopic').textContent = topic;
-                    document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
-                    document.getElementById('settingsLastMsg').textContent = new Date().toLocaleTimeString();
+                    const _dmc = document.getElementById('diagMsgCount'); if (_dmc) _dmc.textContent = messageCount;
+                    const _tm = document.getElementById('totalMessages'); if (_tm) _tm.textContent = messageCount;
+                    const _dt = document.getElementById('diagTopic'); if (_dt) _dt.textContent = topic;
+                    const _lu = document.getElementById('lastUpdate'); if (_lu) _lu.textContent = new Date().toLocaleTimeString();
+                    const _slm = document.getElementById('settingsLastMsg'); if (_slm) _slm.textContent = new Date().toLocaleTimeString();
 
                     try {
                         const raw = (typeof message === 'string') ? message : new TextDecoder().decode(message);
@@ -1346,7 +1344,7 @@
 
             // Avg power
             if (messageCount > 0) {
-                document.getElementById('avgPower').textContent = (powerSum / messageCount).toFixed(2) + ' W';
+                const _ap = document.getElementById('avgPower'); if (_ap) _ap.textContent = (powerSum / messageCount).toFixed(2) + ' W';
             }
         }
 
@@ -1484,8 +1482,8 @@
             messageCount = 0;
             powerSum = 0;
             document.getElementById('diagMsgCount').textContent = '0';
-            document.getElementById('totalMessages').textContent = '0';
-            document.getElementById('avgPower').textContent = '0 W';
+            const _tm2 = document.getElementById('totalMessages'); if (_tm2) _tm2.textContent = '0';
+            const _ap2 = document.getElementById('avgPower'); if (_ap2) _ap2.textContent = '0 W';
             addActivityLog('Session data cleared');
             vcChart.data.labels = [];
             vcChart.data.datasets[0].data = [];
@@ -1557,8 +1555,8 @@
                 messageCount = docs.length;
                 powerSum = docs.reduce((sum, doc) => sum + (doc.payload?.power_W ?? doc.payload?.power ?? 0), 0);
                 document.getElementById('diagMsgCount').textContent = messageCount;
-                document.getElementById('totalMessages').textContent = messageCount;
-                document.getElementById('avgPower').textContent = (powerSum / messageCount).toFixed(2) + ' W';
+                const _tm3 = document.getElementById('totalMessages'); if (_tm3) _tm3.textContent = messageCount;
+                const _ap3 = document.getElementById('avgPower'); if (_ap3) _ap3.textContent = (powerSum / messageCount).toFixed(2) + ' W';
 
             } catch (e) {
                 console.warn('[MongoDB] Error loading history:', e.message);
