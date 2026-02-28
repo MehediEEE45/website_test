@@ -1147,15 +1147,15 @@
                     mqttLog('CONNECTED! connack=' + JSON.stringify(connack));
                     setStatus(true);
                     document.getElementById('statusSubtext').textContent = 'Subscribed to ' + CONFIG.topic;
-                    mqttClient.subscribe(CONFIG.topic, { qos: 0 })
-                        .then((granted) => {
-                            console.log('[MQTT] Subscribed OK:', granted);
-                            mqttLog('SUBSCRIBED OK: ' + JSON.stringify(granted));
-                        })
-                        .catch((err) => {
+                    mqttClient.subscribe(CONFIG.topic, { qos: 0 }, (err, granted) => {
+                        if (err) {
                             console.error('[MQTT] Subscribe error:', err);
                             mqttLog('SUBSCRIBE ERROR: ' + (err.message || JSON.stringify(err)));
-                        });
+                        } else {
+                            console.log('[MQTT] Subscribed OK:', granted);
+                            mqttLog('SUBSCRIBED OK: ' + JSON.stringify(granted));
+                        }
+                    });
                 });
 
                 mqttClient.on('message', (topic, message) => {

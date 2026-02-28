@@ -198,9 +198,10 @@
       client.on('connect', (connack) => {
         console.log('[MQTT] Connected, connack:', connack);
         setStatus(true);
-        client.subscribe(TOPIC, { qos: 0 })
-          .then((granted) => console.log('[MQTT] Subscribed OK:', granted))
-          .catch((err) => console.error('[MQTT] subscribe err', err));
+        client.subscribe(TOPIC, { qos: 0 }, (err, granted) => {
+          if (err) console.error('[MQTT] subscribe err', err);
+          else console.log('[MQTT] Subscribed OK:', granted);
+        });
       });
 
       client.on('reconnect', ()=> { console.log('[MQTT] reconnecting'); setStatus(false); });
