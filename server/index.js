@@ -188,7 +188,7 @@ app.use((req, res, next) => {
   if (origin && (allowedOrigins.includes(origin) || origin.startsWith('http://192.168.') || origin.startsWith('http://localhost'))) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   }
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
@@ -500,6 +500,7 @@ app.get('/api/mongo/export/json/:deviceId', async (req, res) => {
         voltage: d.payload?.bus_V ?? d.payload?.voltage,
         current: d.payload?.current_A ?? d.payload?.current,
         power: d.payload?.power_W ?? d.payload?.power,
+        temperature: d.payload?.temperature ?? null,
         soc: d.payload?.soc_percent,
         soh: d.payload?.soh_percent,
         uptime_ms: d.payload?.uptime_ms
@@ -508,6 +509,131 @@ app.get('/api/mongo/export/json/:deviceId', async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// ===== Write / Delete / Command Endpoints =====
+
+// POST: Insert a manual reading into MongoDB
+app.post('/api/mongo/readings/:deviceId', async (req, res) => {
+  if (!mongoCol) return res.status(503).json({ error: 'MongoDB not connected' });
+  try {
+    const deviceId = req.params.deviceId;
+    const { payload } = req.body || {};
+    if (!payload || typeof payload !== 'object') return res.status(400).json({ error: 'Missing payload object' });
+    const doc = {
+      device_id: deviceId,
+      topic: 'manual/insert',
+      ts: Date.now(),
+      ts_date: new Date(),
+      voltage: Number(payload.bus_V ?? payload.voltage ?? null) ?? null,
+      current: Number(payload.current_A ?? payload.current ?? null) ?? null,
+      power: Number(payload.power_W ?? payload.power ?? null) ?? null,
+      temperature: Number(payload.temperature ?? null) ?? null,
+      soc_percent: Number(payload.soc_percent ?? null) ?? null,
+      soh_percent: Number(payload.soh_percent ?? null) ?? null,
+      uptime_ms: payload.uptime_ms ?? null,
+      payload
+    };
+    const result = await mongoCol.insertOne(doc);
+    res.json({ success: true, insertedId: result.insertedId });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST: Bulk insert readings (for syncing localStorage data)
+app.post('/api/mongo/sync/:deviceId', async (req, res) => {
+  if (!mongoCol) return res.status(503).json({ error: 'MongoDB not connected' });
+  try {
+    const deviceId = req.params.deviceId;
+    const { readings } = req.body || {};
+    if (!Array.isArray(readings) || readings.length === 0) return res.status(400).json({ error: 'readings must be a non-empty array' });
+    const docs = readings.map(r => {
+      const p = r.payload || r;
+      return {
+        device_id: deviceId,
+        topic: 'sync/browser',
+        ts: r.timestamp ? new Date(r.timestamp).getTime() : Date.now(),
+        ts_date: r.timestamp ? new Date(r.timestamp) : new Date(),
+        voltage: Number(p.bus_V ?? p.voltage ?? null) ?? null,
+        current: Number(p.current_A ?? p.current ?? null) ?? null,
+        power: Number(p.power_W ?? p.power ?? null) ?? null,
+        temperature: Number(p.temperature ?? null) ?? null,
+        soc_percent: Number(p.soc_percent ?? null) ?? null,
+        soh_percent: Number(p.soh_percent ?? null) ?? null,
+        uptime_ms: p.uptime_ms ?? null,
+        payload: p
+      };
+    });
+    const result = await mongoCol.insertMany(docs);
+    res.json({ success: true, insertedCount: result.insertedCount });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// DELETE: Purge all data for a device
+app.delete('/api/mongo/readings/:deviceId', async (req, res) => {
+  if (!mongoCol) return res.status(503).json({ error: 'MongoDB not connected' });
+  try {
+    const deviceId = req.params.deviceId;
+    const result = await mongoCol.deleteMany({ device_id: deviceId });
+    res.json({ success: true, deletedCount: result.deletedCount });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// DELETE: Purge data for a device within a date range
+app.delete('/api/mongo/readings/:deviceId/range', async (req, res) => {
+  if (!mongoCol) return res.status(503).json({ error: 'MongoDB not connected' });
+  try {
+    const deviceId = req.params.deviceId;
+    const from = req.query.from ? new Date(req.query.from).getTime() : 0;
+    const to = req.query.to ? new Date(req.query.to).getTime() : Date.now();
+    const result = await mongoCol.deleteMany({ device_id: deviceId, ts: { $gte: from, $lte: to } });
+    res.json({ success: true, deletedCount: result.deletedCount });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST: Send a command to ESP32 via MQTT (publish to battery/recieve)
+app.post('/api/command/:deviceId', (req, res) => {
+  if (!client.connected) return res.status(503).json({ error: 'MQTT not connected' });
+  try {
+    const { command, value } = req.body || {};
+    if (!command) return res.status(400).json({ error: 'Missing command field' });
+    const payload = JSON.stringify({ command, value: value ?? null, ts: Date.now(), from: 'web-dashboard' });
+    const topic = process.env.MQTT_COMMAND_TOPIC || 'battery/recieve';
+    client.publish(topic, payload, { qos: 1 }, (err) => {
+      if (err) return res.status(500).json({ error: 'Publish failed: ' + err.message });
+      console.log(`Command sent to ${topic}: ${payload}`);
+      res.json({ success: true, topic, payload: JSON.parse(payload) });
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET: Server status (MongoDB + MQTT + counts)
+app.get('/api/status', async (req, res) => {
+  const status = {
+    mqtt: client.connected,
+    mongo: !!mongoCol,
+    uptime: process.uptime(),
+    ts: Date.now()
+  };
+  if (mongoCol) {
+    try {
+      status.totalDocs = await mongoCol.countDocuments();
+      const devResult = await mongoCol.aggregate([{ $group: { _id: '$device_id' } }]).toArray();
+      status.devices = devResult.map(d => d._id);
+    } catch (e) {
+      status.mongoError = e.message;
+    }
+  }
+  res.json(status);
 });
 
 // Add WebSocket bridge so browsers can receive MQTT messages via ws://<host>:<port>/ws

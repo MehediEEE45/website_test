@@ -177,10 +177,34 @@ const DATA = {
         };
     },
 
-    // Stub for server sync; in production call backend API
+    // Sync localStorage data to MongoDB via backend server
     async syncToServer(deviceId, options = {}) {
-        // options: url, apiKey, batchSize
-        return { success: false, error: 'Not implemented' };
+        const url = options.url || (typeof getBackendUrl === 'function' ? getBackendUrl() : '');
+        if (!url) return { success: false, error: 'No backend URL configured' };
+        const key = this._key(deviceId);
+        const arr = JSON.parse(localStorage.getItem(key) || '[]');
+        if (!Array.isArray(arr) || arr.length === 0) return { success: false, error: 'No local data to sync' };
+        const batchSize = options.batchSize || 200;
+        let totalInserted = 0;
+        try {
+            for (let i = 0; i < arr.length; i += batchSize) {
+                const batch = arr.slice(i, i + batchSize);
+                const resp = await fetch(`${url}/api/mongo/sync/${deviceId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ readings: batch })
+                });
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({ error: 'HTTP ' + resp.status }));
+                    return { success: false, error: err.error || 'Server error', synced: totalInserted };
+                }
+                const data = await resp.json();
+                totalInserted += data.insertedCount || 0;
+            }
+            return { success: true, synced: totalInserted, total: arr.length };
+        } catch (e) {
+            return { success: false, error: e.message, synced: totalInserted };
+        }
     }
 };
 

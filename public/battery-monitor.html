@@ -982,6 +982,52 @@
                     <div id="mongoStatus" style="font-size:12px;margin-top:12px;color:#9ca3af;"></div>
                 </div>
             </div>
+
+            <!-- ESP32 Command Panel -->
+            <div style="max-width:600px;margin-top:24px;">
+                <div class="stat-card">
+                    <h3 style="font-size:18px;font-weight:600;margin-bottom:16px;">ESP32 Command Panel</h3>
+                    <p style="font-size:12px;color:#6b7280;margin-bottom:16px;">Send commands to ESP32 via MQTT (publishes to <code>battery/recieve</code>)</p>
+                    <div style="display:grid;gap:12px;">
+                        <div style="display:flex;gap:8px;">
+                            <input type="text" class="input-field" id="cmdCommand" placeholder="Command (e.g. set_interval, restart, calibrate)" style="flex:2;">
+                            <input type="text" class="input-field" id="cmdValue" placeholder="Value (optional)" style="flex:1;">
+                        </div>
+                        <div style="display:flex;gap:8px;">
+                            <button class="btn btn-primary" onclick="sendEspCommand()" style="flex:1;">Send Command</button>
+                            <button class="btn btn-secondary" onclick="sendEspCommand('restart')" style="font-size:11px;">Restart</button>
+                            <button class="btn btn-secondary" onclick="sendEspCommand('status')" style="font-size:11px;">Status</button>
+                        </div>
+                    </div>
+                    <div id="cmdStatus" style="font-size:12px;margin-top:12px;color:#9ca3af;"></div>
+                </div>
+            </div>
+
+            <!-- Data Management Panel -->
+            <div style="max-width:600px;margin-top:24px;">
+                <div class="stat-card">
+                    <h3 style="font-size:18px;font-weight:600;margin-bottom:16px;">MongoDB Data Management</h3>
+                    <div style="display:grid;gap:12px;">
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            <button class="btn btn-secondary" onclick="checkServerStatus()" style="flex:1;">Check Status</button>
+                            <button class="btn btn-secondary" onclick="syncLocalData()" style="flex:1;">Sync LocalStorage → MongoDB</button>
+                        </div>
+                        <div style="display:flex;gap:8px;align-items:flex-end;">
+                            <div style="flex:1;">
+                                <label style="font-size:11px;color:#9ca3af;display:block;margin-bottom:4px;">From</label>
+                                <input type="date" class="input-field" id="purgeFrom" style="font-size:12px;">
+                            </div>
+                            <div style="flex:1;">
+                                <label style="font-size:11px;color:#9ca3af;display:block;margin-bottom:4px;">To</label>
+                                <input type="date" class="input-field" id="purgeTo" style="font-size:12px;">
+                            </div>
+                            <button class="btn btn-secondary" onclick="purgeByRange()" style="background:rgba(239,68,68,0.1);border-color:rgba(239,68,68,0.3);color:#ef4444;">Delete Range</button>
+                        </div>
+                        <button class="btn btn-secondary" onclick="purgeAllData()" style="background:rgba(239,68,68,0.15);border-color:rgba(239,68,68,0.4);color:#ef4444;">⚠ Delete ALL Data for Device</button>
+                    </div>
+                    <div id="dataManageStatus" style="font-size:12px;margin-top:12px;color:#9ca3af;"></div>
+                </div>
+            </div>
         </div>
 
         <!-- Footer -->
@@ -1859,6 +1905,124 @@
         function testMongoConnection() {
             document.getElementById('mongoStatus').innerHTML = '<span style="color:#6b7280;">MongoDB is managed by the backend server. Use "Test Connection" above to verify.</span>';
             setTimeout(() => { document.getElementById('mongoStatus').innerHTML = ''; }, 3000);
+        }
+
+        // ===== ESP32 Command Functions =====
+        async function sendEspCommand(preset) {
+            const command = preset || document.getElementById('cmdCommand').value.trim();
+            const value = preset ? null : document.getElementById('cmdValue').value.trim() || null;
+            if (!command) { alert('Enter a command'); return; }
+            const url = getBackendUrl();
+            const deviceId = getDeviceId();
+            const statusEl = document.getElementById('cmdStatus');
+            statusEl.innerHTML = '<span style="color:#3b82f6;">Sending...</span>';
+            try {
+                const resp = await fetch(`${url}/api/command/${deviceId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ command, value })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    statusEl.innerHTML = '<span style="color:#22c55e;">✓ Command sent: ' + command + (value ? '=' + value : '') + '</span>';
+                    addActivityLog('Command sent to ESP32: ' + command + (value ? '=' + value : ''));
+                } else {
+                    statusEl.innerHTML = '<span style="color:#ef4444;">✗ ' + (data.error || 'Failed') + '</span>';
+                }
+            } catch (e) {
+                statusEl.innerHTML = '<span style="color:#ef4444;">✗ ' + e.message + '</span>';
+            }
+            setTimeout(() => { statusEl.innerHTML = ''; }, 5000);
+        }
+
+        // ===== Data Management Functions =====
+        async function checkServerStatus() {
+            const url = getBackendUrl();
+            const el = document.getElementById('dataManageStatus');
+            el.innerHTML = '<span style="color:#3b82f6;">Checking...</span>';
+            try {
+                const resp = await fetch(`${url}/api/status`);
+                const data = await resp.json();
+                el.innerHTML = '<span style="color:#22c55e;">MQTT: ' + (data.mqtt ? '✓' : '✗') + ' | MongoDB: ' + (data.mongo ? '✓' : '✗') + ' | Docs: ' + (data.totalDocs || 0) + ' | Devices: ' + (data.devices?.join(', ') || 'none') + '</span>';
+            } catch (e) {
+                el.innerHTML = '<span style="color:#ef4444;">✗ ' + e.message + '</span>';
+            }
+            setTimeout(() => { el.innerHTML = ''; }, 8000);
+        }
+
+        async function syncLocalData() {
+            const url = getBackendUrl();
+            const deviceId = getDeviceId();
+            const el = document.getElementById('dataManageStatus');
+            const key = 'device_data_' + deviceId;
+            const stored = localStorage.getItem(key);
+            if (!stored) { el.innerHTML = '<span style="color:#f59e0b;">No local data to sync</span>'; return; }
+            const readings = JSON.parse(stored);
+            if (!readings.length) { el.innerHTML = '<span style="color:#f59e0b;">No local data to sync</span>'; return; }
+            el.innerHTML = '<span style="color:#3b82f6;">Syncing ' + readings.length + ' records...</span>';
+            try {
+                const resp = await fetch(`${url}/api/mongo/sync/${deviceId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ readings })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    el.innerHTML = '<span style="color:#22c55e;">✓ Synced ' + data.insertedCount + ' records to MongoDB</span>';
+                    addActivityLog('Synced ' + data.insertedCount + ' records from localStorage to MongoDB');
+                } else {
+                    el.innerHTML = '<span style="color:#ef4444;">✗ ' + (data.error || 'Failed') + '</span>';
+                }
+            } catch (e) {
+                el.innerHTML = '<span style="color:#ef4444;">✗ ' + e.message + '</span>';
+            }
+            setTimeout(() => { el.innerHTML = ''; }, 5000);
+        }
+
+        async function purgeByRange() {
+            const from = document.getElementById('purgeFrom').value;
+            const to = document.getElementById('purgeTo').value;
+            if (!from || !to) { alert('Select both From and To dates'); return; }
+            if (!confirm('Delete all data from ' + from + ' to ' + to + '?')) return;
+            const url = getBackendUrl();
+            const deviceId = getDeviceId();
+            const el = document.getElementById('dataManageStatus');
+            el.innerHTML = '<span style="color:#3b82f6;">Deleting...</span>';
+            try {
+                const resp = await fetch(`${url}/api/mongo/readings/${deviceId}/range?from=${from}&to=${to}`, { method: 'DELETE' });
+                const data = await resp.json();
+                if (data.success) {
+                    el.innerHTML = '<span style="color:#22c55e;">✓ Deleted ' + data.deletedCount + ' records</span>';
+                    addActivityLog('Deleted ' + data.deletedCount + ' records (' + from + ' to ' + to + ')');
+                } else {
+                    el.innerHTML = '<span style="color:#ef4444;">✗ ' + (data.error || 'Failed') + '</span>';
+                }
+            } catch (e) {
+                el.innerHTML = '<span style="color:#ef4444;">✗ ' + e.message + '</span>';
+            }
+            setTimeout(() => { el.innerHTML = ''; }, 5000);
+        }
+
+        async function purgeAllData() {
+            const deviceId = getDeviceId();
+            if (!confirm('⚠ DELETE ALL MongoDB data for ' + deviceId + '? This cannot be undone!')) return;
+            if (!confirm('Are you absolutely sure?')) return;
+            const url = getBackendUrl();
+            const el = document.getElementById('dataManageStatus');
+            el.innerHTML = '<span style="color:#3b82f6;">Deleting all...</span>';
+            try {
+                const resp = await fetch(`${url}/api/mongo/readings/${deviceId}`, { method: 'DELETE' });
+                const data = await resp.json();
+                if (data.success) {
+                    el.innerHTML = '<span style="color:#22c55e;">✓ Deleted ' + data.deletedCount + ' records for ' + deviceId + '</span>';
+                    addActivityLog('PURGED ALL DATA: ' + data.deletedCount + ' records deleted');
+                } else {
+                    el.innerHTML = '<span style="color:#ef4444;">✗ ' + (data.error || 'Failed') + '</span>';
+                }
+            } catch (e) {
+                el.innerHTML = '<span style="color:#ef4444;">✗ ' + e.message + '</span>';
+            }
+            setTimeout(() => { el.innerHTML = ''; }, 5000);
         }
 
         // ===== Recording Control Functions =====

@@ -77,6 +77,22 @@
   <script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
   <script>
+    // Backend config (uses localStorage if saved from battery-monitor settings)
+    function getBackendUrl() {
+      try {
+        const saved = localStorage.getItem('backend_config');
+        if (saved) { const cfg = JSON.parse(saved); if (cfg.url) return cfg.url.replace(/\/+$/, ''); }
+      } catch(e) {}
+      return window.location.protocol + '//' + window.location.host;
+    }
+    function getDeviceId() {
+      try {
+        const saved = localStorage.getItem('backend_config');
+        if (saved) { const cfg = JSON.parse(saved); if (cfg.deviceId) return cfg.deviceId; }
+      } catch(e) {}
+      return 'battery_esp32_1';
+    }
+
     // Broker defaults (match project HiveMQ config)
     const BROKER = 'wss://0d34f5789e1e4a669367abfe5bd45b15.s1.eu.hivemq.cloud:8884/mqtt';
     const USER = 'battery';
@@ -118,8 +134,8 @@
       statusEl.textContent = 'Fetching data from server...';
       
       try {
-        const serverUrl = window.location.protocol + '//' + window.location.host;
-        const deviceId = 'battery_esp32_1';
+        const serverUrl = getBackendUrl();
+        const deviceId = getDeviceId();
         const response = await fetch(`${serverUrl}/api/mongo/readings/${deviceId}?limit=500`);
         
         if (!response.ok) {
