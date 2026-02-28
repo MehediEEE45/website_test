@@ -123,10 +123,9 @@ const MQTT_CLIENT = {
                 
                 // Resubscribe to all topics
                 this.subscriptions.forEach((callbacks, topic) => {
-                    this.client.subscribe(topic, { qos: 0 }, (err) => {
-                        if (err) console.error('[MQTT] Resubscribe error:', topic, err);
-                        else console.log('[MQTT] Resubscribed to:', topic);
-                    });
+                    this.client.subscribe(topic, { qos: 0 })
+                        .then(() => console.log('[MQTT] Resubscribed to:', topic))
+                        .catch((err) => console.error('[MQTT] Resubscribe error:', topic, err));
                 });
                 
                 resolve(true);
@@ -185,13 +184,9 @@ const MQTT_CLIENT = {
         }
 
         if (this.connected && this.client) {
-            this.client.subscribe(topic, { qos }, (err, granted) => {
-                if (err) {
-                    console.error('[MQTT] Subscribe error:', topic, err);
-                } else {
-                    console.log('[MQTT] Subscribed to:', topic, granted);
-                }
-            });
+            this.client.subscribe(topic, { qos })
+                .then((granted) => console.log('[MQTT] Subscribed to:', topic, granted))
+                .catch((err) => console.error('[MQTT] Subscribe error:', topic, err));
         }
         return this;
     },
@@ -200,10 +195,9 @@ const MQTT_CLIENT = {
     unsubscribe(topic) {
         this.subscriptions.delete(topic);
         if (this.connected && this.client) {
-            this.client.unsubscribe(topic, (err) => {
-                if (err) console.error('[MQTT] Unsubscribe error:', topic, err);
-                else console.log('[MQTT] Unsubscribed from:', topic);
-            });
+            this.client.unsubscribe(topic)
+                .then(() => console.log('[MQTT] Unsubscribed from:', topic))
+                .catch((err) => console.error('[MQTT] Unsubscribe error:', topic, err));
         }
         return this;
     },
@@ -216,10 +210,9 @@ const MQTT_CLIENT = {
         }
 
         const payload = typeof message === 'object' ? JSON.stringify(message) : String(message);
-        this.client.publish(topic, payload, options, (err) => {
-            if (err) console.error('[MQTT] Publish error:', topic, err);
-            else console.log('[MQTT] Published to:', topic);
-        });
+        this.client.publish(topic, payload, options)
+            .then(() => console.log('[MQTT] Published to:', topic))
+            .catch((err) => console.error('[MQTT] Publish error:', topic, err));
         return true;
     },
 
