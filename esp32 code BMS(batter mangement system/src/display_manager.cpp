@@ -47,40 +47,65 @@ void display_status(const char* line1, const char* line2) {
     oled.display();
 }
 
-void display_sensorPage(const SampleRecord& rec, float tempC) {
+void display_sensorPage(const SampleRecord& rec, float tempC, int relayState) {
     if (!present) return;
     oled.clearDisplay();
 
-    // V / I / P  –  large text
-    oled.setTextSize(2);
-    oled.setCursor(0, 0);
-    oled.print("V:");  oled.print(String(rec.bus_V, 2));      oled.print("V");
-    oled.setCursor(0, 20);
-    oled.print("I:");  oled.print(String(rec.current_A, 2));  oled.print("A");
-    oled.setCursor(0, 40);
-    oled.print("P:");  oled.print(String(rec.power_W, 2));    oled.print("W");
-
-    // T / SoC / SoH  –  small text
+    // ── Row 0: V and relay badge ─────────────────────────────
     oled.setTextSize(1);
-    oled.setCursor(0, 50);
-    oled.print("T:");  oled.print(String(tempC, 1));  oled.print("C");
-    oled.setCursor(0, 57);
+    oled.setCursor(0, 0);
+    oled.print("V:"); oled.print(String(rec.bus_V, 3)); oled.print("V");
+    // Relay badge: top-right corner
+    oled.setCursor(90, 0);
+    if (relayState == 0) {    // RELAY_CLOSED = charging
+        oled.print("[CHG ON]");
+    } else {                  // RELAY_OPEN   = stopped
+        oled.print("[CHG OFF]");
+    }
+
+    // ── Row 1: I ──────────────────────────────────────────────
+    oled.setCursor(0, 10);
+    oled.print("I:"); oled.print(String(rec.current_A, 3)); oled.print("A");
+
+    // ── Row 2: P ──────────────────────────────────────────────
+    oled.setCursor(0, 20);
+    oled.print("P:"); oled.print(String(rec.power_W, 2)); oled.print("W");
+
+    // ── Row 3: T ──────────────────────────────────────────────
+    oled.setCursor(0, 30);
+    oled.print("T:"); oled.print(String(tempC, 1)); oled.print("C");
+
+    // ── Row 4: SoC / SoH ──────────────────────────────────────
+    oled.setCursor(0, 40);
     oled.print("SoC:"); oled.print(String(rec.soc_percent, 1)); oled.print("%");
-    oled.setCursor(80, 57);
+    oled.setCursor(70, 40);
     oled.print("SoH:"); oled.print(String(rec.soh_percent, 1)); oled.print("%");
+
+    // ── Row 5: SoC bar ────────────────────────────────────────
+    oled.setCursor(0, 52);
+    oled.print("[");
+    int barPixels = (int)(rec.soc_percent / 100.0f * 20);  // 20 chars wide
+    for (int i = 0; i < 20; i++) {
+        oled.print(i < barPixels ? "|" : " ");
+    }
+    oled.print("]");
 
     oled.display();
 }
 
-void display_tempOnlyPage(float tempC) {
+void display_tempOnlyPage(float tempC, int relayState) {
     if (!present) return;
     oled.clearDisplay();
-    oled.setTextSize(2);
+    oled.setTextSize(1);
     oled.setCursor(0, 0);
-    oled.print("Temp:");
-    oled.setCursor(0, 22);
+    // Relay badge
+    oled.print(relayState == 0 ? "Relay: CHG ON" : "Relay: CHG OFF");
+    oled.setTextSize(2);
+    oled.setCursor(0, 14);
+    oled.print("T:");
+    oled.setCursor(0, 30);
     oled.print(String(tempC, 1));
-    oled.print(" C");
+    oled.print("C");
     oled.setTextSize(1);
     oled.setCursor(0, 56);
     oled.print("INA219 not found");

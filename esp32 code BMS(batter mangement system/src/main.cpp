@@ -6,7 +6,7 @@
 //  ┌──────────────┬───────┬──────┬────────────────────────────────┐
 //  │ Task         │ Core  │ Prio │ Role                           │
 //  ├──────────────┼───────┼──────┼────────────────────────────────┤
-//  │ SensorTask   │  1    │  3   │ Read INA219 + LM35 every 5 s  │
+//  │ SensorTask   │  1    │  3   │ Read INA219 + LM35 every 5 s   │
 //  │ NetworkTask  │  0    │  2   │ WiFi + MQTT + publish          │
 //  │ DisplayTask  │  1    │  1   │ Update OLED every 1 s          │
 //  │ WatchdogTask │  0    │  1   │ Feed HW watchdog, health check │
@@ -24,6 +24,7 @@
 #include "ina219_sensor.h"
 #include "display_manager.h"
 #include "eeprom_buffer.h"
+#include "relay_control.h"
 
 // ─────────────── Shared state (mutex-protected) ──────────────────
 static SemaphoreHandle_t xSensorMutex = NULL;
@@ -37,6 +38,8 @@ struct SharedSensorData {
     uint32_t     sensorReadCount;
     uint32_t     publishCount;
     uint32_t     failCount;
+    RelayState   relayState;     // current relay position
+    const char*  relayReason;    // last cut-off reason string
 };
 static SharedSensorData shared = {};
 
@@ -65,18 +68,25 @@ void sensorTask(void* pvParam) {
             rec.uptime_ms = (uint32_t)now;
         }
 
+        // ── Relay threshold check (runs every sensor cycle) ────────
+        relay_checkThresholds(rec, tempC);
+
         // Write to shared state under mutex
         if (xSemaphoreTake(xSensorMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
             shared.rec         = rec;
             shared.temperature = tempC;
             shared.dataReady   = true;
             shared.sensorReadCount++;
+            shared.relayState  = relay_getState();
+            shared.relayReason = relay_getReasonStr();
             xSemaphoreGive(xSensorMutex);
         }
 
-        Serial.printf("[Sensor] V=%.3f I=%.3f P=%.3f T=%.2f SoC=%.1f%%  (#%u)\n",
+        Serial.printf("[Sensor] V=%.3f I=%.3f P=%.3f T=%.2f SoC=%.1f%%  Relay:%s  (#%u)\n",
                        rec.bus_V, rec.current_A, rec.power_W, tempC,
-                       rec.soc_percent, shared.sensorReadCount);
+                       rec.soc_percent,
+                       relay_getState() == RELAY_CLOSED ? "ON" : "OFF",
+                       shared.sensorReadCount);
 
         vTaskDelay(pdMS_TO_TICKS(PUBLISH_INTERVAL_MS));
     }
@@ -164,29 +174,33 @@ void displayTask(void* pvParam) {
 
     for (;;) {
         SampleRecord rec;
-        float        tempC     = 0;
-        bool         ready     = false;
-        bool         wifiOk    = false;
-        bool         mqttOk    = false;
-        uint32_t     pubCount  = 0;
-        uint32_t     failCount = 0;
+        float        tempC      = 0;
+        bool         ready      = false;
+        bool         wifiOk     = false;
+        bool         mqttOk     = false;
+        uint32_t     pubCount   = 0;
+        uint32_t     failCount  = 0;
+        RelayState   relayState = RELAY_OPEN;
+        const char*  relayReason = "";
 
         if (xSemaphoreTake(xSensorMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
-            rec       = shared.rec;
-            tempC     = shared.temperature;
-            ready     = shared.dataReady;
-            wifiOk    = shared.wifiConnected;
-            mqttOk    = shared.mqttConnected;
-            pubCount  = shared.publishCount;
-            failCount = shared.failCount;
+            rec         = shared.rec;
+            tempC       = shared.temperature;
+            ready       = shared.dataReady;
+            wifiOk      = shared.wifiConnected;
+            mqttOk      = shared.mqttConnected;
+            pubCount    = shared.publishCount;
+            failCount   = shared.failCount;
+            relayState  = shared.relayState;
+            relayReason = shared.relayReason ? shared.relayReason : "";
             xSemaphoreGive(xSensorMutex);
         }
 
         if (ready) {
             if (ina_isPresent()) {
-                display_sensorPage(rec, tempC);
+                display_sensorPage(rec, tempC, relayState);
             } else {
-                display_tempOnlyPage(tempC);
+                display_tempOnlyPage(tempC, relayState);
             }
         } else {
             // Waiting for sensor data
@@ -262,6 +276,7 @@ void setup() {
     temp_init();
     display_init();
     ina_init();
+    relay_init();   // initialise relay (starts OPEN = safe)
 
     display_status(ina_isPresent() ? "INA219: OK" : "INA219: NOT FOUND");
     delay(800);

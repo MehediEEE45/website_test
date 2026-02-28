@@ -12,8 +12,8 @@ bool display_isPresent();
 /// Show a simple single-line status message.
 void display_status(const char* line1, const char* line2 = nullptr);
 
-/// Main sensor page: V, I, P, T, SoC, SoH.
-void display_sensorPage(const SampleRecord& rec, float tempC);
+/// Main sensor page: V, I, P, T, SoC, SoH + relay status.
+void display_sensorPage(const SampleRecord& rec, float tempC, int relayState = 0);
 
-/// Temperature-only page (when INA219 is absent).
-void display_tempOnlyPage(float tempC);
+/// Temperature-only page (when INA219 is absent) + relay status.
+void display_tempOnlyPage(float tempC, int relayState = 0);

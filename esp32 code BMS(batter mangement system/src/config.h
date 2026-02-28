@@ -53,6 +53,22 @@ static const unsigned long WIFI_TIMEOUT_MS = 15000;  // per SSID
 // ───── Misc Pins ─────
 #define BUTTON_PIN    25
 
+// ───── Charge Relay ─────
+// GPIO26: drives relay module IN pin
+// Most relay modules activate on LOW → RELAY_ACTIVE_LEVEL = LOW
+#define RELAY_PIN           26
+#define RELAY_ACTIVE_LEVEL  LOW    // LOW = energise coil = circuit closed
+
+// Auto cut-off thresholds (open relay = stop charging)
+#define RELAY_CUTOFF_SOC_PERCENT  95.0f   // cut when SoC  ≥ 95 %
+#define RELAY_CUTOFF_VOLTAGE_V     4.15f  // cut when V    ≥ 4.15 V
+#define RELAY_CUTOFF_TEMP_C        45.0f  // cut when Temp ≥ 45 °C
+
+// Auto resume thresholds (close relay = resume charging)
+#define RELAY_RESUME_SOC_PERCENT   85.0f  // resume when SoC  ≤ 85 %
+#define RELAY_RESUME_VOLTAGE_V      4.05f // resume when V    ≤ 4.05 V
+#define RELAY_RESUME_TEMP_C         40.0f // resume when Temp ≤ 40 °C
+
 // ───── Battery / SoC ─────
 #define BATTERY_CAPACITY_mAh    4200.0f
 #define INITIAL_SOC_PERCENT     100.0f
@@ -85,6 +101,7 @@ static const unsigned long WIFI_TIMEOUT_MS = 15000;  // per SSID
 #define TASK_NETWORK_STACK      8192   // needs room for TLS
 #define TASK_DISPLAY_STACK      4096
 #define TASK_WATCHDOG_STACK     2048
+#define TASK_RELAY_STACK        2048   // relay monitoring task
 
 // Hardware watchdog timeout (seconds)
 #define WDT_TIMEOUT_SEC         30
