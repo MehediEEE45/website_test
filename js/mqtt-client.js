@@ -75,7 +75,7 @@ const MQTT_CLIENT = {
             // Load mqtt.js from CDN if not available
             if (typeof mqtt === 'undefined') {
                 const script = document.createElement('script');
-                script.src = 'https://unpkg.com/mqtt@5.3.4/dist/mqtt.min.js';
+                script.src = 'https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js';
                 script.onload = () => this._doConnect(resolve, reject);
                 script.onerror = () => reject(new Error('Failed to load MQTT library'));
                 document.head.appendChild(script);
@@ -92,6 +92,8 @@ const MQTT_CLIENT = {
             const options = {
                 clientId: this.config.clientId,
                 keepalive: this.config.keepalive,
+                protocolVersion: 4,
+                protocolId: 'MQTT',
                 reconnectPeriod: this.config.reconnectPeriod,
                 connectTimeout: this.config.connectTimeout,
                 clean: this.config.clean

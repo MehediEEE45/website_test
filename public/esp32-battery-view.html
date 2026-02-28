@@ -74,7 +74,7 @@
     <p style="color:#9ca3af;font-size:13px">This page subscribes to the <code>battery/data</code> topic (default) and displays latest values from the ESP32. Click the button above to load historical data from MongoDB.</p>
   </div>
 
-  <script src="https://unpkg.com/mqtt@4.3.8/dist/mqtt.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
   <script>
     // Broker defaults (match project HiveMQ config)
@@ -177,30 +177,47 @@
     }
 
     // Connect to MQTT for live data
-    const clientId = 'esp-view-' + Math.random().toString(16).slice(2,8);
-    const client = mqtt.connect(BROKER, { clientId, username: USER, password: PASS, protocolVersion: 4, keepalive: 60, reconnectPeriod: 5000, clean: true });
-
-    client.on('connect', () => {
-      setStatus(true);
-      client.subscribe(TOPIC, { qos: 0 }, (err, granted) => {
-        if(err) console.error('subscribe err', err);
-        else console.log('Subscribed OK:', granted);
+    if (typeof mqtt === 'undefined') {
+      statusEl.textContent = 'mqtt.js not loaded';
+      statusEl.className = 'status offline';
+    } else {
+      const clientId = 'esp-view-' + Math.random().toString(16).slice(2,8);
+      console.log('[MQTT] Connecting as', clientId);
+      const client = mqtt.connect(BROKER, {
+        clientId,
+        username: USER,
+        password: PASS,
+        protocolVersion: 4,
+        protocolId: 'MQTT',
+        keepalive: 60,
+        reconnectPeriod: 5000,
+        connectTimeout: 30000,
+        clean: true
       });
-    });
 
-    client.on('reconnect', ()=> setStatus(false));
-    client.on('offline', ()=> setStatus(false));
-    client.on('close', ()=> setStatus(false));
-    client.on('error', (e)=>{ console.error('MQTT err', e); setStatus(false); });
+      client.on('connect', (connack) => {
+        console.log('[MQTT] Connected, connack:', connack);
+        setStatus(true);
+        client.subscribe(TOPIC, { qos: 0 }, (err, granted) => {
+          if(err) console.error('[MQTT] subscribe err', err);
+          else console.log('[MQTT] Subscribed OK:', granted);
+        });
+      });
 
-    client.on('message', (topic, message) => {
-      try{
-        const text = message.toString();
-        let obj = {};
-        try { obj = JSON.parse(text); } catch { obj = {value: text}; }
-        show(obj);
-      } catch(e){ console.error(e); }
-    });
+      client.on('reconnect', ()=> { console.log('[MQTT] reconnecting'); setStatus(false); });
+      client.on('offline', ()=> { console.log('[MQTT] offline'); setStatus(false); });
+      client.on('close', ()=> { console.log('[MQTT] closed'); setStatus(false); });
+      client.on('error', (e)=>{ console.error('[MQTT] error', e); setStatus(false); });
+
+      client.on('message', (topic, message) => {
+        try{
+          const raw = (typeof message === 'string') ? message : new TextDecoder().decode(message);
+          let obj = {};
+          try { obj = JSON.parse(raw); } catch { obj = {value: raw}; }
+          show(obj);
+        } catch(e){ console.error(e); }
+      });
+    }
   </script>
 </body>
 </html>

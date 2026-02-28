@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Battery Health Monitor - Real-time Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -22,7 +25,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
-    <script src="https://unpkg.com/mqtt@4.3.8/dist/mqtt.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -365,6 +368,11 @@
                         <div style="color:#9ca3af;">Client ID:</div><div id="diagClientId" style="font-size:11px;">—</div>
                         <div style="color:#9ca3af;">Messages:</div><div id="diagMsgCount">0</div>
                     </div>
+                </div>
+                <!-- MQTT Debug Log -->
+                <div style="margin-top:12px;">
+                    <p style="font-size:11px;color:#9ca3af;margin-bottom:4px;">MQTT Debug Log <span id="mqttLibVer" style="color:#6b7280;"></span></p>
+                    <pre id="mqttDebugLog" style="background:#0a0a0a;border:1px solid #262626;padding:8px;border-radius:6px;color:#a3e635;max-height:120px;overflow:auto;font-size:10px;font-family:monospace;">Initializing...</pre>
                 </div>
             </div>
         </header>
@@ -964,7 +972,18 @@
         lucide.createIcons();
 
         // =====================================================
-        // MQTT Client (same approach as esp32-battery-view.html)
+        // MQTT Debug Logger
+        // =====================================================
+        function mqttLog(msg) {
+            const el = document.getElementById('mqttDebugLog');
+            if (!el) return;
+            const ts = new Date().toLocaleTimeString();
+            el.textContent += '\n[' + ts + '] ' + msg;
+            el.scrollTop = el.scrollHeight;
+        }
+
+        // =====================================================
+        // MQTT Client
         // =====================================================
         const CONFIG = {
             broker: 'wss://0d34f5789e1e4a669367abfe5bd45b15.s1.eu.hivemq.cloud:8884/mqtt',
@@ -1093,10 +1112,22 @@
         }
 
         function connectMQTT() {
+            // Check if mqtt library loaded
+            if (typeof mqtt === 'undefined') {
+                mqttLog('ERROR: mqtt.js library not loaded! Check network/CDN.');
+                setStatus(false);
+                return;
+            }
+            mqttLog('mqtt.js loaded OK (v5.10.1)');
+            const verEl = document.getElementById('mqttLibVer');
+            if (verEl) verEl.textContent = '(mqtt.js 5.10.1)';
+
             clientId = 'battery-dash-' + Math.random().toString(16).slice(2, 8);
             document.getElementById('diagClientId').textContent = clientId;
             document.getElementById('settingsClientId').textContent = clientId;
             document.getElementById('diagBroker').textContent = CONFIG.broker;
+            mqttLog('Connecting to ' + CONFIG.broker);
+            mqttLog('Topic: ' + CONFIG.topic + ' | User: ' + CONFIG.username);
 
             try {
                 mqttClient = mqtt.connect(CONFIG.broker, {
@@ -1104,20 +1135,25 @@
                     username: CONFIG.username,
                     password: CONFIG.password,
                     protocolVersion: 4,
+                    protocolId: 'MQTT',
                     keepalive: 60,
                     reconnectPeriod: 5000,
+                    connectTimeout: 30000,
                     clean: true
                 });
 
-                mqttClient.on('connect', () => {
+                mqttClient.on('connect', (connack) => {
                     console.log('[MQTT] Connected to', CONFIG.broker);
+                    mqttLog('CONNECTED! connack=' + JSON.stringify(connack));
                     setStatus(true);
                     document.getElementById('statusSubtext').textContent = 'Subscribed to ' + CONFIG.topic;
                     mqttClient.subscribe(CONFIG.topic, { qos: 0 }, (err, granted) => {
                         if (err) {
                             console.error('[MQTT] Subscribe error:', err);
+                            mqttLog('SUBSCRIBE ERROR: ' + (err.message || JSON.stringify(err)));
                         } else {
                             console.log('[MQTT] Subscribed OK:', granted);
+                            mqttLog('SUBSCRIBED OK: ' + JSON.stringify(granted));
                         }
                     });
                 });
@@ -1131,9 +1167,11 @@
                     document.getElementById('settingsLastMsg').textContent = new Date().toLocaleTimeString();
 
                     try {
-                        const text = message.toString();
+                        const raw = (typeof message === 'string') ? message : new TextDecoder().decode(message);
                         let payload = {};
-                        try { payload = JSON.parse(text); } catch { payload = { raw: text }; }
+                        try { payload = JSON.parse(raw); } catch { payload = { raw: raw }; }
+                        
+                        if (messageCount <= 3) mqttLog('MSG #' + messageCount + ': ' + raw.substring(0, 120));
                         
                         // Record data if recording is enabled
                         if (isRecording) {
@@ -1150,18 +1188,21 @@
                         updateCharts(payload);
                     } catch (e) {
                         console.error('[MQTT] Parse error:', e);
+                        mqttLog('PARSE ERROR: ' + e.message);
                     }
                 });
 
-                mqttClient.on('reconnect', () => setStatus(false));
-                mqttClient.on('offline', () => setStatus(false));
-                mqttClient.on('close', () => setStatus(false));
+                mqttClient.on('reconnect', () => { mqttLog('Reconnecting...'); setStatus(false); });
+                mqttClient.on('offline', () => { mqttLog('Offline'); setStatus(false); });
+                mqttClient.on('close', () => { mqttLog('Connection closed'); setStatus(false); });
                 mqttClient.on('error', (e) => {
                     console.error('[MQTT] Error:', e);
+                    mqttLog('ERROR: ' + (e.message || JSON.stringify(e)));
                     setStatus(false);
                 });
             } catch (e) {
                 console.error('[MQTT] Connection failed:', e);
+                mqttLog('CONNECT EXCEPTION: ' + e.message);
                 setStatus(false);
             }
         }
