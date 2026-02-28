@@ -1348,34 +1348,43 @@
             }
         }
 
+        // Helper: compute elapsed-seconds labels from dataHistory timestamps
+        function elapsedLabels() {
+            if (dataHistory.length === 0) return [];
+            const t0 = dataHistory[0].ts;
+            return dataHistory.map(d => ((d.ts - t0) / 1000).toFixed(0));
+        }
+
         function updateCharts(payload) {
-            const time = new Date().toLocaleTimeString();
+            const ts = Date.now();
             const voltage = payload.bus_V ?? payload.voltage ?? 0;
             const current = payload.current_A ?? payload.current ?? 0;
             const power = payload.power_W ?? payload.power ?? 0;
             const temperature = payload.temperature ?? payload.temp_c ?? null;
 
-            dataHistory.push({ time, voltage, current, power, temperature });
+            dataHistory.push({ ts, voltage, current, power, temperature });
             if (dataHistory.length > 50) dataHistory.shift();
 
+            const labels = elapsedLabels();
+
             // Update VC Chart
-            vcChart.data.labels = dataHistory.map(d => d.time);
+            vcChart.data.labels = labels;
             vcChart.data.datasets[0].data = dataHistory.map(d => d.voltage);
             vcChart.data.datasets[1].data = dataHistory.map(d => d.current);
             vcChart.update('none');
 
             // Update Power Chart
-            powerChart.data.labels = dataHistory.map(d => d.time);
+            powerChart.data.labels = labels;
             powerChart.data.datasets[0].data = dataHistory.map(d => d.power);
             powerChart.update('none');
 
             // Update Temperature Chart
-            tempChart.data.labels = dataHistory.map(d => d.time);
+            tempChart.data.labels = labels;
             tempChart.data.datasets[0].data = dataHistory.map(d => d.temperature);
             tempChart.update('none');
 
             // Update History Chart
-            historyChart.data.labels = dataHistory.map(d => d.time);
+            historyChart.data.labels = labels;
             historyChart.data.datasets[0].data = dataHistory.map(d => d.voltage);
             historyChart.update('none');
         }
@@ -1385,9 +1394,9 @@
                 alert('No data to export');
                 return;
             }
-            let csv = 'Time,Voltage,Current,Power,Temperature\n';
+            let csv = 'Timestamp_ms,Voltage,Current,Power,Temperature\n';
             dataHistory.forEach(d => {
-                csv += `${d.time},${d.voltage},${d.current},${d.power},${d.temperature ?? ''}\n`;
+                csv += `${d.ts},${d.voltage},${d.current},${d.power},${d.temperature ?? ''}\n`;
             });
             const blob = new Blob([csv], { type: 'text/csv' });
             const url = URL.createObjectURL(blob);
@@ -1529,25 +1538,27 @@
                     const current = payload.current_A ?? payload.current ?? 0;
                     const power = payload.power_W ?? payload.power ?? 0;
                     const temperature = payload.temperature ?? payload.temp_c ?? null;
-                    const time = new Date(doc.ts).toLocaleTimeString();
-                    dataHistory.push({ time, voltage, current, power, temperature });
+                    const ts = new Date(doc.ts).getTime();
+                    dataHistory.push({ ts, voltage, current, power, temperature });
                 });
 
+                const labels = elapsedLabels();
+
                 // Update charts with historical data
-                vcChart.data.labels = dataHistory.map(d => d.time);
+                vcChart.data.labels = labels;
                 vcChart.data.datasets[0].data = dataHistory.map(d => d.voltage);
                 vcChart.data.datasets[1].data = dataHistory.map(d => d.current);
                 vcChart.update('none');
 
-                powerChart.data.labels = dataHistory.map(d => d.time);
+                powerChart.data.labels = labels;
                 powerChart.data.datasets[0].data = dataHistory.map(d => d.power);
                 powerChart.update('none');
 
-                tempChart.data.labels = dataHistory.map(d => d.time);
+                tempChart.data.labels = labels;
                 tempChart.data.datasets[0].data = dataHistory.map(d => d.temperature);
                 tempChart.update('none');
 
-                historyChart.data.labels = dataHistory.map(d => d.time);
+                historyChart.data.labels = labels;
                 historyChart.data.datasets[0].data = dataHistory.map(d => d.voltage);
                 historyChart.update('none');
 
@@ -2154,7 +2165,7 @@
                 responsive: true,
                 plugins: { legend: { labels: { color: '#9ca3af' } } },
                 scales: {
-                    x: { ticks: { color: '#6b7280', maxTicksLimit: 8 }, grid: { color: '#2a2a2a' } },
+                    x: { title: { display: true, text: 'Time (s)', color: '#9ca3af' }, ticks: { color: '#6b7280', maxTicksLimit: 8 }, grid: { color: '#2a2a2a' } },
                     y: { ticks: { color: '#6b7280' }, grid: { color: '#2a2a2a' } }
                 },
                 animation: false

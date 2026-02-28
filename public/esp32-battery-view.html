@@ -152,7 +152,8 @@
         statusEl.textContent = `Loaded ${docs.length} records from MongoDB`;
         
         // Prepare chart data
-        const labels = docs.map(d => new Date(d.ts).toLocaleTimeString());
+        const t0 = new Date(docs[0].ts).getTime();
+        const labels = docs.map(d => (((new Date(d.ts).getTime()) - t0) / 1000).toFixed(0));
         const voltages = docs.map(d => d.payload?.bus_V ?? d.payload?.voltage ?? 0);
         const currents = docs.map(d => d.payload?.current_A ?? d.payload?.current ?? 0);
         const powers = docs.map(d => d.payload?.power_W ?? d.payload?.power ?? 0);
@@ -179,7 +180,7 @@
             responsive: true,
             plugins: { legend: { labels: { color: '#9ca3af' } } },
             scales: {
-              x: { ticks: { color: '#6b7280', maxTicksLimit: 10 }, grid: { color: '#222226' } },
+              x: { title: { display: true, text: 'Time (s)', color: '#9ca3af' }, ticks: { color: '#6b7280', maxTicksLimit: 10 }, grid: { color: '#222226' } },
               y: { ticks: { color: '#6b7280' }, grid: { color: '#222226' } }
             }
           }
