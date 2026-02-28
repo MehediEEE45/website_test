@@ -1362,7 +1362,9 @@
             const power = payload.power_W ?? payload.power ?? 0;
             const temperature = payload.temperature ?? payload.temp_c ?? null;
 
-            dataHistory.push({ ts, voltage, current, power, temperature });
+            const soc = payload.soc_percent ?? payload.soc ?? null;
+            const soh = payload.soh_percent ?? payload.soh ?? null;
+            dataHistory.push({ ts, voltage, current, power, temperature, soc, soh });
             if (dataHistory.length > 50) dataHistory.shift();
 
             const labels = elapsedLabels();
@@ -1464,7 +1466,7 @@
                 document.getElementById('reportAvgCurrent').textContent = (last.current ?? '—') + ' A';
                 document.getElementById('reportMaxPower').textContent = (last.power ?? '—') + ' W';
                 // Health score based on SoH if available
-                const soh = last.soh ?? last.soh_percent;
+                const soh = last.soh;
                 if (soh !== undefined && soh !== null) {
                     const score = parseFloat(soh);
                     const el = document.getElementById('reportHealthScore');
@@ -1530,7 +1532,12 @@
 
                 console.log('[MongoDB] Loaded', docs.length, 'historical records for', deviceId);
                 
-                // Fill dataHistory from MongoDB docs
+                // Fill dataHistory from MongoDB docs (only if no live data yet)
+                const hadLiveData = dataHistory.length > 0 && dataHistory.some(d => d.ts > Date.now() - 10000);
+                if (hadLiveData) {
+                    console.log('[MongoDB] Skipping overwrite — live data already present');
+                    return;
+                }
                 dataHistory = [];
                 docs.forEach(doc => {
                     const payload = doc.payload || {};
@@ -1538,8 +1545,10 @@
                     const current = payload.current_A ?? payload.current ?? 0;
                     const power = payload.power_W ?? payload.power ?? 0;
                     const temperature = payload.temperature ?? payload.temp_c ?? null;
+                    const soc = payload.soc_percent ?? payload.soc ?? null;
+                    const soh = payload.soh_percent ?? payload.soh ?? null;
                     const ts = new Date(doc.ts).getTime();
-                    dataHistory.push({ ts, voltage, current, power, temperature });
+                    dataHistory.push({ ts, voltage, current, power, temperature, soc, soh });
                 });
 
                 const labels = elapsedLabels();
@@ -1719,7 +1728,11 @@
                 const payload = record.payload || {};
                 // Determine x value
                 let xv = null;
-                if (xAxis === 'time') xv = new Date(record.ts).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                if (xAxis === 'time') {
+                    // elapsed seconds from first record
+                    const _t0 = new Date(lastReadingsData[0].ts).getTime();
+                    xv = ((new Date(record.ts).getTime() - _t0) / 1000).toFixed(0);
+                }
                 else if (xAxis === 'voltage') xv = payload.bus_V ?? payload.voltage ?? null;
                 else if (xAxis === 'current') xv = payload.current_A ?? payload.current ?? null;
                 else if (xAxis === 'power') xv = payload.power_W ?? payload.power ?? null;
@@ -1776,7 +1789,7 @@
                         scales: {
                             y: { type: 'linear', position: 'left', ticks: { color: '#6b7280' }, grid: { color: '#2a2a2a' }, title: { display: true, text: metricLabels[metric1] } },
                             y1: { type: 'linear', position: 'right', ticks: { color: '#6b7280' }, grid: { drawOnChartArea: false }, title: { display: true, text: metricLabels[metric2] } },
-                            x: { ticks: { color: '#6b7280', maxTicksLimit: 12 }, grid: { color: '#2a2a2a' } }
+                            x: { title: { display: true, text: 'Time (s)', color: '#9ca3af' }, ticks: { color: '#6b7280', maxTicksLimit: 12 }, grid: { color: '#2a2a2a' } }
                         }
                     }
                 });

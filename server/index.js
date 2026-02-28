@@ -138,12 +138,12 @@ client.on('message', async (topic, message) => {
 
   if (payload && typeof payload === 'object') {
     doc.device_id = payload.device_id || deviceId;
-    doc.voltage = Number(payload.bus_V ?? payload.voltage ?? null) ?? null;
-    doc.current = Number(payload.current_A ?? payload.current ?? null) ?? null;
-    doc.power = Number(payload.power_W ?? payload.power ?? null) ?? null;
-    doc.temperature = Number(payload.temperature ?? null) ?? null;
-    doc.soc_percent = Number(payload.soc_percent ?? null) ?? null;
-    doc.soh_percent = Number(payload.soh_percent ?? null) ?? null;
+    doc.voltage = (payload.bus_V ?? payload.voltage) != null ? Number(payload.bus_V ?? payload.voltage) : null;
+    doc.current = (payload.current_A ?? payload.current) != null ? Number(payload.current_A ?? payload.current) : null;
+    doc.power = (payload.power_W ?? payload.power) != null ? Number(payload.power_W ?? payload.power) : null;
+    doc.temperature = payload.temperature != null ? Number(payload.temperature) : null;
+    doc.soc_percent = payload.soc_percent != null ? Number(payload.soc_percent) : null;
+    doc.soh_percent = payload.soh_percent != null ? Number(payload.soh_percent) : null;
     doc.uptime_ms = payload.uptime_ms ?? null;
     doc.payload = payload;
   } else {
@@ -271,10 +271,12 @@ app.get('/api/mongo/stats/:deviceId', async (req, res) => {
       return res.json({ device_id: deviceId, count: 0, voltage: null, current: null, power: null, soc: null });
     }
 
-    const altKey = { bus_V: 'voltage', current_A: 'current', power_W: 'power' };
+    const keyAlts = { bus_V: 'voltage', current_A: 'current', power_W: 'power', temperature: 'temp_c', soc_percent: 'soc', soh_percent: 'soh' };
     const getNumbers = (key) => docs.map(d => {
-      const val = d.payload ? (d.payload[key] ?? d.payload[altKey[key]] ?? null) : null;
-      return typeof val === 'number' ? val : null;
+      if (!d.payload) return null;
+      let val = d.payload[key];
+      if (val == null && keyAlts[key]) val = d.payload[keyAlts[key]];
+      return (val != null && !isNaN(val)) ? Number(val) : null;
     }).filter(v => v !== null);
 
     const calcStats = (arr) => {
@@ -339,10 +341,12 @@ app.get('/api/mongo/stats/30days/:deviceId', async (req, res) => {
       return res.json({ device_id: deviceId, days, count: 0, stats: null });
     }
 
-    const altKey = { bus_V: 'voltage', current_A: 'current', power_W: 'power' };
+    const keyAlts2 = { bus_V: 'voltage', current_A: 'current', power_W: 'power', temperature: 'temp_c', soc_percent: 'soc', soh_percent: 'soh' };
     const getNumbers = (key) => docs.map(d => {
-      const val = d.payload ? (d.payload[key] ?? d.payload[altKey[key]] ?? null) : null;
-      return typeof val === 'number' ? val : null;
+      if (!d.payload) return null;
+      let val = d.payload[key];
+      if (val == null && keyAlts2[key]) val = d.payload[keyAlts2[key]];
+      return (val != null && !isNaN(val)) ? Number(val) : null;
     }).filter(v => v !== null);
 
     const calcStats = (arr) => {
@@ -525,12 +529,12 @@ app.post('/api/mongo/readings/:deviceId', async (req, res) => {
       topic: 'manual/insert',
       ts: Date.now(),
       ts_date: new Date(),
-      voltage: Number(payload.bus_V ?? payload.voltage ?? null) ?? null,
-      current: Number(payload.current_A ?? payload.current ?? null) ?? null,
-      power: Number(payload.power_W ?? payload.power ?? null) ?? null,
-      temperature: Number(payload.temperature ?? null) ?? null,
-      soc_percent: Number(payload.soc_percent ?? null) ?? null,
-      soh_percent: Number(payload.soh_percent ?? null) ?? null,
+      voltage: (payload.bus_V ?? payload.voltage) != null ? Number(payload.bus_V ?? payload.voltage) : null,
+      current: (payload.current_A ?? payload.current) != null ? Number(payload.current_A ?? payload.current) : null,
+      power: (payload.power_W ?? payload.power) != null ? Number(payload.power_W ?? payload.power) : null,
+      temperature: payload.temperature != null ? Number(payload.temperature) : null,
+      soc_percent: payload.soc_percent != null ? Number(payload.soc_percent) : null,
+      soh_percent: payload.soh_percent != null ? Number(payload.soh_percent) : null,
       uptime_ms: payload.uptime_ms ?? null,
       payload
     };
@@ -555,12 +559,12 @@ app.post('/api/mongo/sync/:deviceId', async (req, res) => {
         topic: 'sync/browser',
         ts: r.timestamp ? new Date(r.timestamp).getTime() : Date.now(),
         ts_date: r.timestamp ? new Date(r.timestamp) : new Date(),
-        voltage: Number(p.bus_V ?? p.voltage ?? null) ?? null,
-        current: Number(p.current_A ?? p.current ?? null) ?? null,
-        power: Number(p.power_W ?? p.power ?? null) ?? null,
-        temperature: Number(p.temperature ?? null) ?? null,
-        soc_percent: Number(p.soc_percent ?? null) ?? null,
-        soh_percent: Number(p.soh_percent ?? null) ?? null,
+        voltage: (p.bus_V ?? p.voltage) != null ? Number(p.bus_V ?? p.voltage) : null,
+        current: (p.current_A ?? p.current) != null ? Number(p.current_A ?? p.current) : null,
+        power: (p.power_W ?? p.power) != null ? Number(p.power_W ?? p.power) : null,
+        temperature: p.temperature != null ? Number(p.temperature) : null,
+        soc_percent: p.soc_percent != null ? Number(p.soc_percent) : null,
+        soh_percent: p.soh_percent != null ? Number(p.soh_percent) : null,
         uptime_ms: p.uptime_ms ?? null,
         payload: p
       };
