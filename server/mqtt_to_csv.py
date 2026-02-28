@@ -23,6 +23,7 @@ from urllib.parse import urlparse
 
 try:
     import paho.mqtt.client as mqtt
+    from paho.mqtt.enums import CallbackAPIVersion
 except Exception:
     raise SystemExit("Please install required package: pip install paho-mqtt")
 
@@ -34,9 +35,9 @@ except Exception:
 try:
     from dotenv import load_dotenv
     load_dotenv(dotenv_path=Path(__file__).parent / '.env')
-except Exception:
-    # dotenv optional; env vars can still be used
-    pass
+except ImportError:
+    print('Warning: python-dotenv not installed. Install with: pip install python-dotenv')
+    print('Falling back to system environment variables only.')
 
 DEFAULT_TOPIC = os.environ.get('MQTT_TOPIC_FILTER', 'energy/+/+/telemetry')
 
@@ -81,7 +82,7 @@ class MQTTToCSV:
         self.supabase_key = supabase_key
         # Choose transport: websockets for ws/wss, otherwise tcp
         transport = 'websockets' if (scheme in ('ws', 'wss')) else 'tcp'
-        self.client = mqtt.Client(transport=transport)
+        self.client = mqtt.Client(callback_api_version=CallbackAPIVersion.VERSION2, transport=transport)
         self.client.on_connect = self.on_connect
         self.client.on_message = self.on_message
         if username:
@@ -110,8 +111,8 @@ class MQTTToCSV:
                 writer = csv.DictWriter(f, fieldnames=FIELDNAMES)
                 writer.writeheader()
 
-    def on_connect(self, client, userdata, flags, rc):
-        print('MQTT connected, rc=', rc)
+    def on_connect(self, client, userdata, flags, reason_code, properties=None):
+        print('MQTT connected, rc=', reason_code)
         client.subscribe(self.topic)
         print('Subscribed to', self.topic)
 

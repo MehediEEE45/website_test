@@ -438,6 +438,19 @@
                         </div>
                     </div>
                 </div>
+                <!-- Temperature -->
+                <div class="stat-card">
+                    <div style="display:flex;align-items:center;gap:16px;">
+                        <div class="icon-box icon-orange">
+                            <i data-lucide="thermometer" style="width:24px;height:24px;"></i>
+                        </div>
+                        <div>
+                            <p style="font-size:12px;color:#9ca3af;margin-bottom:4px;">Temperature</p>
+                            <p style="font-size:32px;font-weight:700;" id="temperature">—</p>
+                            <p style="font-size:12px;color:#9ca3af;">°C</p>
+                        </div>
+                    </div>
+                </div>
                 <!-- Uptime -->
                 <div class="stat-card">
                     <div style="display:flex;align-items:center;gap:16px;">
@@ -468,6 +481,13 @@
                         Power History
                     </h3>
                     <canvas id="powerChart" height="150"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h3 style="font-size:18px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+                        <i data-lucide="thermometer" style="width:20px;height:20px;color:#ef4444;"></i>
+                        Temperature History
+                    </h3>
+                    <canvas id="tempChart" height="150"></canvas>
                 </div>
             </div>
         </div>
@@ -584,6 +604,7 @@
                                 <option value="voltage">Voltage</option>
                                 <option value="current">Current</option>
                                 <option value="power">Power</option>
+                                <option value="temperature">Temperature</option>
                                 <option value="soc">SoC</option>
                                 <option value="soh">SoH</option>
                                 <option value="energy">Energy</option>
@@ -595,6 +616,7 @@
                                 <option value="voltage">Voltage</option>
                                 <option value="current">Current</option>
                                 <option value="power">Power</option>
+                                <option value="temperature">Temperature</option>
                                 <option value="soc">SoC</option>
                                 <option value="soh">SoH</option>
                                 <option value="energy">Energy</option>
@@ -606,6 +628,7 @@
                                 <option value="voltage">Voltage</option>
                                 <option value="current" selected>Current</option>
                                 <option value="power">Power</option>
+                                <option value="temperature">Temperature</option>
                                 <option value="soc">SoC</option>
                                 <option value="soh">SoH</option>
                                 <option value="energy">Energy</option>
@@ -962,7 +985,7 @@
         let mongoConfig = { uri: '', db: 'battery_monitor', collection: 'telemetry', ttl: 30 };
 
         // Chart instances
-        let vcChart, powerChart, historyChart, trendsChart, comparisonChart;
+        let vcChart, powerChart, tempChart, historyChart, trendsChart, comparisonChart;
         
         // Store data for comparison chart
         let lastReadingsData = [];
@@ -1182,6 +1205,13 @@
                 document.getElementById('soh').textContent = parseFloat(payload.soh).toFixed(1);
             }
 
+            // Temperature
+            if (payload.temperature !== undefined) {
+                document.getElementById('temperature').textContent = parseFloat(payload.temperature).toFixed(1);
+            } else if (payload.temp_c !== undefined) {
+                document.getElementById('temperature').textContent = parseFloat(payload.temp_c).toFixed(1);
+            }
+
             // Uptime
             if (payload.uptime_ms !== undefined) {
                 document.getElementById('uptime').textContent = Math.floor(payload.uptime_ms / 1000);
@@ -1200,8 +1230,9 @@
             const voltage = payload.bus_V ?? payload.voltage ?? 0;
             const current = payload.current_A ?? payload.current ?? 0;
             const power = payload.power_W ?? payload.power ?? 0;
+            const temperature = payload.temperature ?? payload.temp_c ?? null;
 
-            dataHistory.push({ time, voltage, current, power });
+            dataHistory.push({ time, voltage, current, power, temperature });
             if (dataHistory.length > 50) dataHistory.shift();
 
             // Update VC Chart
@@ -1215,6 +1246,11 @@
             powerChart.data.datasets[0].data = dataHistory.map(d => d.power);
             powerChart.update('none');
 
+            // Update Temperature Chart
+            tempChart.data.labels = dataHistory.map(d => d.time);
+            tempChart.data.datasets[0].data = dataHistory.map(d => d.temperature);
+            tempChart.update('none');
+
             // Update History Chart
             historyChart.data.labels = dataHistory.map(d => d.time);
             historyChart.data.datasets[0].data = dataHistory.map(d => d.voltage);
@@ -1226,9 +1262,9 @@
                 alert('No data to export');
                 return;
             }
-            let csv = 'Time,Voltage,Current,Power\n';
+            let csv = 'Time,Voltage,Current,Power,Temperature\n';
             dataHistory.forEach(d => {
-                csv += `${d.time},${d.voltage},${d.current},${d.power}\n`;
+                csv += `${d.time},${d.voltage},${d.current},${d.power},${d.temperature ?? ''}\n`;
             });
             const blob = new Blob([csv], { type: 'text/csv' });
             const url = URL.createObjectURL(blob);
@@ -1333,6 +1369,9 @@
             powerChart.data.labels = [];
             powerChart.data.datasets[0].data = [];
             powerChart.update();
+            tempChart.data.labels = [];
+            tempChart.data.datasets[0].data = [];
+            tempChart.update();
             historyChart.data.labels = [];
             historyChart.data.datasets[0].data = [];
             historyChart.update();
@@ -1367,8 +1406,9 @@
                     const voltage = payload.bus_V ?? payload.voltage ?? 0;
                     const current = payload.current_A ?? payload.current ?? 0;
                     const power = payload.power_W ?? payload.power ?? 0;
+                    const temperature = payload.temperature ?? payload.temp_c ?? null;
                     const time = new Date(doc.ts).toLocaleTimeString();
-                    dataHistory.push({ time, voltage, current, power });
+                    dataHistory.push({ time, voltage, current, power, temperature });
                 });
 
                 // Update charts with historical data
@@ -1380,6 +1420,10 @@
                 powerChart.data.labels = dataHistory.map(d => d.time);
                 powerChart.data.datasets[0].data = dataHistory.map(d => d.power);
                 powerChart.update('none');
+
+                tempChart.data.labels = dataHistory.map(d => d.time);
+                tempChart.data.datasets[0].data = dataHistory.map(d => d.temperature);
+                tempChart.update('none');
 
                 historyChart.data.labels = dataHistory.map(d => d.time);
                 historyChart.data.datasets[0].data = dataHistory.map(d => d.voltage);
@@ -1517,6 +1561,7 @@
                 voltage: 'Voltage (V)',
                 current: 'Current (A)',
                 power: 'Power (W)',
+                temperature: 'Temperature (°C)',
                 soc: 'SoC (%)',
                 soh: 'SoH (%)',
                 energy: 'Energy (kWh)'
@@ -1526,6 +1571,7 @@
                 voltage: '#3b82f6',
                 current: '#22c55e',
                 power: '#a855f7',
+                temperature: '#ef4444',
                 soc: '#f59e0b',
                 soh: '#06b6d4',
                 energy: '#ec4899'
@@ -1544,6 +1590,7 @@
                 else if (xAxis === 'voltage') xv = payload.bus_V ?? payload.voltage ?? null;
                 else if (xAxis === 'current') xv = payload.current_A ?? payload.current ?? null;
                 else if (xAxis === 'power') xv = payload.power_W ?? payload.power ?? null;
+                else if (xAxis === 'temperature') xv = payload.temperature ?? payload.temp_c ?? null;
                 else if (xAxis === 'soc') xv = payload.soc_percent ?? null;
                 else if (xAxis === 'soh') xv = payload.soh_percent ?? null;
                 else if (xAxis === 'energy') xv = payload.energy_kwh ?? null;
@@ -1553,6 +1600,7 @@
                 if (metric1 === 'voltage') v1 = payload.bus_V ?? payload.voltage ?? null;
                 else if (metric1 === 'current') v1 = payload.current_A ?? payload.current ?? null;
                 else if (metric1 === 'power') v1 = payload.power_W ?? payload.power ?? null;
+                else if (metric1 === 'temperature') v1 = payload.temperature ?? payload.temp_c ?? null;
                 else if (metric1 === 'soc') v1 = payload.soc_percent ?? null;
                 else if (metric1 === 'soh') v1 = payload.soh_percent ?? null;
                 else if (metric1 === 'energy') v1 = payload.energy_kwh ?? null;
@@ -1561,6 +1609,7 @@
                 if (metric2 === 'voltage') v2 = payload.bus_V ?? payload.voltage ?? null;
                 else if (metric2 === 'current') v2 = payload.current_A ?? payload.current ?? null;
                 else if (metric2 === 'power') v2 = payload.power_W ?? payload.power ?? null;
+                else if (metric2 === 'temperature') v2 = payload.temperature ?? payload.temp_c ?? null;
                 else if (metric2 === 'soc') v2 = payload.soc_percent ?? null;
                 else if (metric2 === 'soh') v2 = payload.soh_percent ?? null;
                 else if (metric2 === 'energy') v2 = payload.energy_kwh ?? null;
@@ -1865,6 +1914,17 @@
                     labels: [],
                     datasets: [
                         { label: 'Power (W)', data: [], borderColor: '#a855f7', backgroundColor: 'rgba(168,85,247,0.1)', tension: 0.4, fill: true, pointRadius: 2 }
+                    ]
+                },
+                options: chartOptions
+            });
+
+            tempChart = new Chart(document.getElementById('tempChart').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        { label: 'Temperature (°C)', data: [], borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', tension: 0.4, fill: true, pointRadius: 2 }
                     ]
                 },
                 options: chartOptions

@@ -49,6 +49,10 @@
         <div id="soh" class="value">—</div>
       </div>
       <div class="stat">
+        <div class="label">Temp (°C)</div>
+        <div id="temperature" class="value">—</div>
+      </div>
+      <div class="stat">
         <div class="label">Uptime (s)</div>
         <div id="uptime" class="value">—</div>
       </div>
@@ -98,6 +102,8 @@
       else if(obj.soc !== undefined) document.getElementById('soc').textContent = parseFloat(obj.soc).toFixed(1);
       if(obj.soh_percent !== undefined) document.getElementById('soh').textContent = parseFloat(obj.soh_percent).toFixed(1);
       else if(obj.soh !== undefined) document.getElementById('soh').textContent = parseFloat(obj.soh).toFixed(1);
+      if(obj.temperature !== undefined) document.getElementById('temperature').textContent = parseFloat(obj.temperature).toFixed(1);
+      else if(obj.temp_c !== undefined) document.getElementById('temperature').textContent = parseFloat(obj.temp_c).toFixed(1);
       if(obj.uptime_ms !== undefined) document.getElementById('uptime').textContent = Math.floor(obj.uptime_ms/1000);
       else if(obj.uptime !== undefined) document.getElementById('uptime').textContent = Math.floor(obj.uptime/1000);
     }
